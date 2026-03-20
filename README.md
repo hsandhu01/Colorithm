@@ -1,14 +1,17 @@
-# Chromafall
+# Colorithm
 
-Chromafall is a browser puzzle prototype that blends:
+Colorithm is a fast, candy-bright line-clearing puzzle game from [Sandhu Software](https://www.sandhusoftware.com/).
 
-- Block Blast style piece placement
-- Tetris-like cascade pressure
-- Big full-line clears and combo chains
+Built for the browser with `three.js`, Colorithm focuses on:
 
-The current build is dependency-free at install time. It uses `three.js` from a CDN, so you can run it with a tiny local server.
+- clean full-line clears
+- satisfying multi-line combos
+- glossy arcade-style presentation
+- procedural music and reactive sound design
 
-## Run It
+## Play Locally
+
+Start a local server:
 
 ```bash
 npm start
@@ -20,21 +23,31 @@ Or:
 python3 -m http.server 4173
 ```
 
-Then open `http://localhost:4173`.
+Open `http://localhost:4173`.
 
-## How To Play
+## How It Works
 
 - Pick one of the three shards in the tray
-- Hover the board to preview the placement
-- Click to place it
+- Hover the board to preview placement
+- Click to place the shard
 - Rotate with `Q`, `E`, or `R`
-- Clear only full rows or full columns
-- Multi-line clears score big and can cascade into more clears
-- Survive as long as at least one shard can still fit
+- Clear only full horizontal rows or full vertical columns
+- Chain multiple line clears to run up the score
+- Stay alive as long as at least one shard still fits
 
-## Tech Notes
+## Project Structure
 
-- `index.html` sets up the app shell and import map
-- `styles.css` handles the glassy HUD and animated backdrop
-- `src/main.js` contains the Three.js scene, input handling, game state, and rendering
-- `src/audio.js` generates procedural music and sound effects with the Web Audio API
+- `index.html` contains the app shell and import map
+- `styles.css` contains the visual system and HUD styling
+- `src/main.js` contains gameplay, rendering, input, and animation
+- `src/audio.js` contains procedural music and sound effects
+
+## Notes
+
+- This project loads `three.js` and Google Fonts from CDNs
+- Best score is stored locally in the browser
+
+## Links
+
+- Website: [www.sandhusoftware.com](https://www.sandhusoftware.com/)
+- Repository: `https://github.com/hsandhu01/Colorithm`

@@ -11,7 +11,7 @@ const CELL_SIZE = 1.12;
 const BOARD_WIDTH = COLS * CELL_SIZE;
 const BOARD_HEIGHT = ROWS * CELL_SIZE;
 const BLOCK_DEPTH = 0.74;
-const STORAGE_KEY = "chromafall-best-score";
+const STORAGE_KEY = "colorithm-best-score";
 
 const COLORS = [
   { id: "dragonfruit", label: "Dragonfruit", hex: 0xff4da6, emissive: 0x631340, css: "#ff4da6" },
