@@ -293,6 +293,7 @@ const state = {
   pieces: [],
   selectedPieceId: null,
   hover: null,
+  touchPointerId: null,
   resolving: false,
   gameOver: false,
   score: 0,
@@ -325,6 +326,7 @@ bestValue.textContent = formatNumber(state.best);
 
 resetGame();
 attachEvents();
+updateViewportCssVars();
 updateSceneLayout();
 maybeAutoStart();
 animate();
@@ -332,10 +334,15 @@ animate();
 function attachEvents() {
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerleave", () => {
+    if (state.touchPointerId != null) {
+      return;
+    }
     state.hover = null;
     updateGhost();
   });
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
+  canvas.addEventListener("pointerup", onCanvasPointerUp, { passive: false });
+  canvas.addEventListener("pointercancel", onCanvasPointerCancel);
 
   rotateLeftButton.addEventListener("click", () => rotateSelected(-1));
   rotateRightButton.addEventListener("click", () => rotateSelected(1));
@@ -380,6 +387,7 @@ function onResize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(viewport.width, viewport.height);
   composer.setSize(viewport.width, viewport.height);
+  updateViewportCssVars();
   syncResponsiveLabels(audio.enabled);
   updateSceneLayout();
 }
@@ -400,6 +408,10 @@ function onPointerMove(event) {
   if (!getSelectedPiece() || state.resolving || state.gameOver) {
     state.hover = null;
     updateGhost();
+    return;
+  }
+
+  if (state.touchPointerId != null && event.pointerId !== state.touchPointerId) {
     return;
   }
 
@@ -427,6 +439,55 @@ async function onCanvasPointerDown(event) {
   }
 
   event.preventDefault();
+  if (isTouchInteraction(event)) {
+    state.touchPointerId = event.pointerId;
+    canvas.setPointerCapture?.(event.pointerId);
+    setStatus("Drag on the grid, then lift to place.");
+    return;
+  }
+
+  await placePieceAtHover(piece, hover);
+}
+
+async function onCanvasPointerUp(event) {
+  if (state.touchPointerId == null || event.pointerId !== state.touchPointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  canvas.releasePointerCapture?.(event.pointerId);
+  state.touchPointerId = null;
+
+  if (startModal && !startModal.classList.contains("hidden")) {
+    return;
+  }
+
+  if (state.resolving || state.gameOver) {
+    return;
+  }
+
+  const piece = getSelectedPiece();
+  const hover = getHoverCellFromEvent(event) ?? state.hover;
+  state.hover = hover;
+  updateGhost();
+
+  if (!piece || !hover) {
+    return;
+  }
+
+  await placePieceAtHover(piece, hover);
+}
+
+function onCanvasPointerCancel(event) {
+  if (state.touchPointerId == null || event.pointerId !== state.touchPointerId) {
+    return;
+  }
+
+  canvas.releasePointerCapture?.(event.pointerId);
+  state.touchPointerId = null;
+}
+
+async function placePieceAtHover(piece, hover) {
   const placement = getPlacementCells(piece, hover.row, hover.col);
   if (!placement.valid) {
     state.shake = 0.16;
@@ -459,6 +520,7 @@ function resetGame() {
   state.gameOver = false;
   state.resolving = false;
   state.hover = null;
+  state.touchPointerId = null;
   state.selectedPieceId = null;
   state.shake = 0;
   if (state.statusTimeout) {
@@ -571,7 +633,11 @@ function renderTray() {
       renderTray();
       updateGhost();
       audio.playSelect();
-      setStatus(`${piece.name} primed. Tap or click a cell to place it.`);
+      setStatus(
+        window.innerWidth <= 720
+          ? `${piece.name} primed. Drag on the grid, then lift to place.`
+          : `${piece.name} primed. Tap or click a cell to place it.`
+      );
     });
 
     pieceTray.append(button);
@@ -585,6 +651,16 @@ function getViewportSize() {
     width: window.visualViewport?.width ?? window.innerWidth,
     height: window.visualViewport?.height ?? window.innerHeight
   };
+}
+
+function updateViewportCssVars() {
+  const viewport = window.visualViewport;
+  const topOffset = viewport ? Math.max(0, viewport.offsetTop) : 0;
+  const bottomOffset = viewport
+    ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+    : 0;
+  document.documentElement.style.setProperty("--viewport-offset-top", `${topOffset}px`);
+  document.documentElement.style.setProperty("--viewport-offset-bottom", `${bottomOffset}px`);
 }
 
 function updatePointerFromEvent(event) {
@@ -610,6 +686,10 @@ function getHoverCellFromEvent(event) {
   }
 
   return { row, col };
+}
+
+function isTouchInteraction(event) {
+  return event.pointerType === "touch" || event.pointerType === "pen";
 }
 
 function syncResponsiveLabels(soundEnabled) {

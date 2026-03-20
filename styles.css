@@ -9,6 +9,8 @@
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
   --left-rail: clamp(330px, 20vw, 430px);
   --right-rail: clamp(300px, 19vw, 390px);
+  --viewport-offset-top: 0px;
+  --viewport-offset-bottom: 0px;
 }
 
 * {
@@ -868,7 +870,7 @@ kbd {
 
 @media (max-width: 720px) {
   .top-ui {
-    top: max(12px, env(safe-area-inset-top));
+    top: calc(12px + env(safe-area-inset-top) + var(--viewport-offset-top));
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;
@@ -921,7 +923,7 @@ kbd {
   }
 
   .lower-ui {
-    bottom: max(12px, env(safe-area-inset-bottom));
+    bottom: calc(12px + env(safe-area-inset-bottom) + var(--viewport-offset-bottom));
     display: grid;
     grid-template-columns: minmax(0, 1fr) 104px;
     align-items: end;
