@@ -335,7 +335,7 @@ function attachEvents() {
     state.hover = null;
     updateGhost();
   });
-  canvas.addEventListener("pointerdown", onCanvasPointerDown);
+  canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
 
   rotateLeftButton.addEventListener("click", () => rotateSelected(-1));
   rotateRightButton.addEventListener("click", () => rotateSelected(1));
@@ -343,7 +343,7 @@ function attachEvents() {
   soundButton.addEventListener("click", async () => {
     await audio.unlock();
     const enabled = audio.toggle();
-    soundButton.textContent = `Sound: ${enabled ? "On" : "Off"}`;
+    syncResponsiveLabels(enabled);
     setStatus(enabled ? "Sound restored." : "Sound muted.");
   });
   startButton.addEventListener("click", async () => {
@@ -353,6 +353,8 @@ function attachEvents() {
   });
 
   window.addEventListener("resize", onResize);
+  window.visualViewport?.addEventListener("resize", onResize);
+  window.visualViewport?.addEventListener("scroll", onResize);
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("pointerdown", unlockOnFirstInput, { once: true });
 }
@@ -371,12 +373,14 @@ function unlockOnFirstInput() {
 }
 
 function onResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const viewport = getViewportSize();
+  camera.aspect = viewport.width / viewport.height;
   camera.updateProjectionMatrix();
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(viewport.width, viewport.height);
+  composer.setSize(viewport.width, viewport.height);
+  syncResponsiveLabels(audio.enabled);
   updateSceneLayout();
 }
 
@@ -393,38 +397,18 @@ function onKeyDown(event) {
 }
 
 function onPointerMove(event) {
-  const rect = canvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
   if (!getSelectedPiece() || state.resolving || state.gameOver) {
     state.hover = null;
     updateGhost();
     return;
   }
 
-  raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObject(hoverPlate, false)[0];
-  if (!hit) {
-    state.hover = null;
-    updateGhost();
-    return;
-  }
-
-  const localPoint = boardGroup.worldToLocal(hit.point.clone());
-  const col = Math.floor((localPoint.x + BOARD_WIDTH / 2) / CELL_SIZE);
-  const row = Math.floor((BOARD_HEIGHT / 2 - localPoint.y) / CELL_SIZE);
-
-  if (!isInside(row, col)) {
-    state.hover = null;
-  } else {
-    state.hover = { row, col };
-  }
+  state.hover = getHoverCellFromEvent(event);
 
   updateGhost();
 }
 
-async function onCanvasPointerDown() {
+async function onCanvasPointerDown(event) {
   if (startModal && !startModal.classList.contains("hidden")) {
     return;
   }
@@ -434,11 +418,16 @@ async function onCanvasPointerDown() {
   }
 
   const piece = getSelectedPiece();
-  if (!piece || !state.hover) {
+  const hover = getHoverCellFromEvent(event) ?? state.hover;
+  state.hover = hover;
+  updateGhost();
+
+  if (!piece || !hover) {
     return;
   }
 
-  const placement = getPlacementCells(piece, state.hover.row, state.hover.col);
+  event.preventDefault();
+  const placement = getPlacementCells(piece, hover.row, hover.col);
   if (!placement.valid) {
     state.shake = 0.16;
     audio.playReject();
@@ -481,6 +470,7 @@ function resetGame() {
   updateScoreboard();
   renderTray();
   updateGhost();
+  syncResponsiveLabels(audio.enabled);
   setStatus("Pick a shard and work toward a full row or column.");
 }
 
@@ -581,13 +571,60 @@ function renderTray() {
       renderTray();
       updateGhost();
       audio.playSelect();
-      setStatus(`${piece.name} primed. Find a clean setup.`);
+      setStatus(`${piece.name} primed. Tap or click a cell to place it.`);
     });
 
     pieceTray.append(button);
   }
 
   updateSceneLayout();
+}
+
+function getViewportSize() {
+  return {
+    width: window.visualViewport?.width ?? window.innerWidth,
+    height: window.visualViewport?.height ?? window.innerHeight
+  };
+}
+
+function updatePointerFromEvent(event) {
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function getHoverCellFromEvent(event) {
+  updatePointerFromEvent(event);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObject(hoverPlate, false)[0];
+  if (!hit) {
+    return null;
+  }
+
+  const localPoint = boardGroup.worldToLocal(hit.point.clone());
+  const col = Math.floor((localPoint.x + BOARD_WIDTH / 2) / CELL_SIZE);
+  const row = Math.floor((BOARD_HEIGHT / 2 - localPoint.y) / CELL_SIZE);
+
+  if (!isInside(row, col)) {
+    return null;
+  }
+
+  return { row, col };
+}
+
+function syncResponsiveLabels(soundEnabled) {
+  if (window.innerWidth <= 720) {
+    rotateLeftButton.textContent = "Turn L";
+    rotateRightButton.textContent = "Turn R";
+    soundButton.textContent = soundEnabled ? "Audio On" : "Audio Off";
+    newRunButton.textContent = "Reset";
+    return;
+  }
+
+  rotateLeftButton.textContent = "Rotate Left";
+  rotateRightButton.textContent = "Rotate Right";
+  soundButton.textContent = soundEnabled ? "Sound: On" : "Sound: Off";
+  newRunButton.textContent = "New Run";
 }
 
 async function placeSelectedPiece(piece, placementCells) {
@@ -1031,25 +1068,26 @@ function clearGhost() {
 }
 
 function updateSceneLayout() {
-  const phone = window.innerWidth <= 720;
-  const stacked = window.innerWidth <= 1080;
+  const viewport = getViewportSize();
+  const phone = viewport.width <= 720;
+  const stacked = viewport.width <= 1080;
   if (phone) {
     const topRail = topUi?.offsetHeight ?? 0;
     const bottomRail = lowerUi?.offsetHeight ?? 0;
-    const availableWidth = window.innerWidth - 24;
-    const availableHeight = window.innerHeight - topRail - bottomRail - 32;
-    const widthSqueeze = THREE.MathUtils.clamp((420 - availableWidth) / 160, 0, 1);
-    const heightSqueeze = THREE.MathUtils.clamp((520 - availableHeight) / 180, 0, 1);
-    const laneBias = THREE.MathUtils.clamp((bottomRail - topRail) / Math.max(window.innerHeight, 1), -0.22, 0.22);
+    const availableWidth = viewport.width - 24;
+    const availableHeight = viewport.height - topRail - bottomRail - 28;
+    const widthSqueeze = THREE.MathUtils.clamp((390 - availableWidth) / 120, 0, 1);
+    const heightSqueeze = THREE.MathUtils.clamp((460 - availableHeight) / 180, 0, 1);
+    const laneBias = THREE.MathUtils.clamp((bottomRail - topRail) / Math.max(viewport.height, 1), -0.18, 0.18);
 
     sceneLayout.boardX = 0;
-    sceneLayout.boardY = 0.5 + laneBias * 0.82 - heightSqueeze * 0.1;
-    sceneLayout.boardScale = 0.54 - heightSqueeze * 0.04 - widthSqueeze * 0.02;
+    sceneLayout.boardY = 0.06 + laneBias * 0.52 - heightSqueeze * 0.06;
+    sceneLayout.boardScale = 0.79 - heightSqueeze * 0.06 - widthSqueeze * 0.03;
     sceneLayout.cameraBaseX = 0;
-    sceneLayout.cameraBaseY = 2.02 + heightSqueeze * 0.06;
-    sceneLayout.cameraBaseZ = 24.4 + heightSqueeze * 0.9 + widthSqueeze * 0.4;
+    sceneLayout.cameraBaseY = 2.08 + heightSqueeze * 0.08;
+    sceneLayout.cameraBaseZ = 20 + heightSqueeze * 1.4 + widthSqueeze * 0.6;
     sceneLayout.targetX = 0;
-    sceneLayout.targetY = 0.34 + laneBias * 0.22;
+    sceneLayout.targetY = 0.12 + laneBias * 0.16;
     sceneLayout.ringX = 2.9;
     sceneLayout.ringY = 0.86;
   } else if (stacked) {
@@ -1086,6 +1124,7 @@ function updateSceneLayout() {
     sceneLayout.ringY = 0.28;
   }
 
+  syncResponsiveLabels(audio.enabled);
   boardGroup.position.set(sceneLayout.boardX, sceneLayout.boardY, 0);
   boardGroup.scale.setScalar(sceneLayout.boardScale);
   backgroundRing.position.set(sceneLayout.ringX, sceneLayout.ringY, -12);
