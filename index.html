@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chromafall</title>
+    <meta
+      name="description"
+      content="A lush three.js puzzle prototype mixing Block Blast placement, Tetris cascades, and candy-colored combo pops."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="aurora aurora-one"></div>
+    <div class="aurora aurora-two"></div>
+    <div class="grain"></div>
+    <canvas id="app"></canvas>
+
+    <main class="hud">
+      <section class="top-ui">
+        <header class="hero glass">
+          <div class="hero-copy">
+            <p class="eyebrow">Three.js Puzzle Prototype</p>
+            <h1>Chromafall</h1>
+            <p class="dek">
+              Place glossy candy shards, complete full lines, and chase satisfying multi-line combo
+              chains.
+            </p>
+          </div>
+        </header>
+
+        <div class="scoreboard glass">
+          <div class="stat">
+            <span>Score</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Best</span>
+            <strong id="bestValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Combo</span>
+            <strong id="comboValue">x1</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="lower-ui">
+        <div class="tray-panel glass">
+          <div class="panel-header">
+            <div>
+              <p class="panel-label">Shard Tray</p>
+              <h2>Choose Your Next Drop</h2>
+            </div>
+            <p class="panel-hint">Only full rows and full columns clear. Stack for doubles.</p>
+          </div>
+          <div id="pieceTray" class="piece-tray" aria-live="polite"></div>
+        </div>
+
+        <aside class="side-panel glass">
+          <div class="panel-header compact">
+            <div>
+              <p class="panel-label">Controls</p>
+              <h2>Keep The Flow Alive</h2>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="rotateLeftButton" class="action-button" type="button">Rotate Left</button>
+            <button id="rotateRightButton" class="action-button" type="button">Rotate Right</button>
+          </div>
+          <div class="button-row">
+            <button id="soundButton" class="action-button subtle" type="button">Sound: On</button>
+            <button id="newRunButton" class="action-button subtle" type="button">New Run</button>
+          </div>
+
+          <div class="tips">
+            <p>Click a shard, hover the grid, then click to place.</p>
+            <p>Use <kbd>Q</kbd>, <kbd>E</kbd>, or <kbd>R</kbd> to rotate.</p>
+            <p>Nothing clears early. Fill the entire width or height.</p>
+          </div>
+
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <p id="statusText">Complete a full horizontal row or vertical column.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <section id="startModal" class="modal">
+      <div class="modal-card glass">
+        <p class="eyebrow">Original Puzzle Concept</p>
+        <h2>Welcome to Chromafall</h2>
+        <p>
+          This build is about clean line clears, chunky candy blocks, and chain reactions from true
+          full-width or full-height clears.
+        </p>
+        <ul>
+          <li>Place three candy shards from the tray</li>
+          <li>Trigger full line clears and multi-line combos</li>
+          <li>Keep at least one move alive or the run ends</li>
+        </ul>
+        <button id="startButton" class="launch-button" type="button">Enter The Grid</button>
+      </div>
+    </section>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
