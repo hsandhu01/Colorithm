@@ -296,6 +296,7 @@ const uniqueRotations = new Map();
 const sceneLayout = {
   boardX: 0.68,
   boardY: -0.96,
+  boardScale: 1,
   cameraBaseX: 0.26,
   cameraBaseY: 2.12,
   cameraBaseZ: 17.2,
@@ -569,6 +570,8 @@ function renderTray() {
 
     pieceTray.append(button);
   }
+
+  updateSceneLayout();
 }
 
 async function placeSelectedPiece(piece, placementCells) {
@@ -1015,10 +1018,11 @@ function updateSceneLayout() {
   const stacked = window.innerWidth <= 1080;
   if (stacked) {
     sceneLayout.boardX = 0;
-    sceneLayout.boardY = -0.82;
+    sceneLayout.boardY = -0.72;
+    sceneLayout.boardScale = 0.9;
     sceneLayout.cameraBaseX = 0;
-    sceneLayout.cameraBaseY = 2.2;
-    sceneLayout.cameraBaseZ = 16.3;
+    sceneLayout.cameraBaseY = 2.16;
+    sceneLayout.cameraBaseZ = 17.1;
     sceneLayout.targetX = 0;
     sceneLayout.targetY = -0.1;
     sceneLayout.ringX = 3.2;
@@ -1026,22 +1030,28 @@ function updateSceneLayout() {
   } else {
     const leftRail = Math.max(heroPanel?.offsetWidth ?? 0, trayPanel?.offsetWidth ?? 0);
     const rightRail = Math.max(scoreboardPanel?.offsetWidth ?? 0, sidePanel?.offsetWidth ?? 0);
+    const topRail = Math.max(heroPanel?.offsetHeight ?? 0, scoreboardPanel?.offsetHeight ?? 0);
+    const bottomRail = Math.max(trayPanel?.offsetHeight ?? 0, sidePanel?.offsetHeight ?? 0);
     const railImbalance = (leftRail - rightRail) / Math.max(window.innerWidth, 1);
     const availableCenter = window.innerWidth - leftRail - rightRail - 96;
+    const availableHeight = window.innerHeight - topRail - bottomRail - 92;
     const squeeze = THREE.MathUtils.clamp((860 - availableCenter) / 340, 0, 1);
+    const verticalSqueeze = THREE.MathUtils.clamp((700 - availableHeight) / 260, 0, 1);
 
     sceneLayout.boardX = THREE.MathUtils.clamp(0.62 + railImbalance * 1.6, 0.42, 0.92);
-    sceneLayout.boardY = -0.96;
+    sceneLayout.boardY = -0.96 + verticalSqueeze * 0.52;
+    sceneLayout.boardScale = 1 - verticalSqueeze * 0.12 - squeeze * 0.03;
     sceneLayout.cameraBaseX = sceneLayout.boardX * 0.38;
-    sceneLayout.cameraBaseY = 2.1;
-    sceneLayout.cameraBaseZ = 17.2 + squeeze * 1.2;
+    sceneLayout.cameraBaseY = 2.1 + verticalSqueeze * 0.02;
+    sceneLayout.cameraBaseZ = 17.2 + squeeze * 1.2 + verticalSqueeze * 1.5;
     sceneLayout.targetX = sceneLayout.boardX * 0.5;
-    sceneLayout.targetY = -0.12;
+    sceneLayout.targetY = -0.12 + verticalSqueeze * 0.18;
     sceneLayout.ringX = 4 + sceneLayout.boardX * 0.35;
     sceneLayout.ringY = 0.28;
   }
 
   boardGroup.position.set(sceneLayout.boardX, sceneLayout.boardY, 0);
+  boardGroup.scale.setScalar(sceneLayout.boardScale);
   backgroundRing.position.set(sceneLayout.ringX, sceneLayout.ringY, -12);
 }
 

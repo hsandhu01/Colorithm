@@ -545,3 +545,173 @@ kbd {
     text-align: left;
   }
 }
+
+@media (max-height: 940px) {
+  .hud {
+    padding: 16px;
+  }
+
+  .top-ui,
+  .lower-ui {
+    left: 16px;
+    right: 16px;
+    gap: 12px;
+  }
+
+  .top-ui {
+    top: 16px;
+  }
+
+  .lower-ui {
+    bottom: 16px;
+  }
+
+  .hero {
+    padding: 14px 16px 16px;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 3.8vw, 3.5rem);
+  }
+
+  .dek {
+    max-width: 32ch;
+    font-size: 0.9rem;
+  }
+
+  .scoreboard {
+    padding: 8px;
+    grid-template-columns: repeat(3, minmax(78px, 96px));
+    gap: 8px;
+  }
+
+  .stat {
+    min-height: 84px;
+    padding: 10px 12px;
+  }
+
+  .stat strong {
+    font-size: clamp(1.15rem, 1.9vw, 1.7rem);
+  }
+
+  .tray-panel,
+  .side-panel {
+    padding: 14px;
+  }
+
+  .tray-panel .panel-header {
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tray-panel .panel-hint {
+    max-width: 28ch;
+    text-align: left;
+  }
+
+  .panel-header h2 {
+    font-size: clamp(1.15rem, 1.7vw, 1.55rem);
+  }
+
+  .piece-tray {
+    grid-template-columns: repeat(3, minmax(92px, 110px));
+    gap: 10px;
+  }
+
+  .piece-card {
+    min-height: 136px;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .piece-name {
+    font-size: 0.92rem;
+  }
+
+  .piece-copy {
+    font-size: 0.72rem;
+  }
+
+  .mini-grid {
+    gap: 5px;
+  }
+
+  .mini-cell {
+    width: 18px;
+    height: 18px;
+    border-radius: 7px;
+  }
+
+  .side-panel {
+    gap: 12px;
+  }
+
+  .action-button,
+  .launch-button {
+    padding: 11px 13px;
+    font-size: 0.86rem;
+  }
+
+  .tips {
+    gap: 6px;
+    font-size: 0.84rem;
+  }
+
+  .status-pill {
+    padding: 10px 12px;
+  }
+}
+
+@media (max-height: 820px) {
+  .eyebrow,
+  .panel-label {
+    font-size: 0.68rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.8rem, 3.2vw, 3rem);
+  }
+
+  .dek {
+    font-size: 0.84rem;
+    max-width: 28ch;
+  }
+
+  .tray-panel,
+  .side-panel {
+    padding: 12px;
+  }
+
+  .piece-tray {
+    grid-template-columns: repeat(3, minmax(86px, 102px));
+    gap: 8px;
+  }
+
+  .piece-card {
+    min-height: 122px;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .piece-name {
+    font-size: 0.88rem;
+  }
+
+  .piece-copy,
+  .tips {
+    font-size: 0.74rem;
+  }
+
+  .mini-cell {
+    width: 16px;
+    height: 16px;
+    border-radius: 6px;
+  }
+
+  .action-button,
+  .launch-button {
+    padding: 10px 11px;
+    font-size: 0.8rem;
+  }
+}
