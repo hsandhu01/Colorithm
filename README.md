@@ -49,5 +49,6 @@ Open `http://localhost:4173`.
 
 ## Links
 
+- Live Site: [hsandhu01.github.io/Colorithm](https://hsandhu01.github.io/Colorithm/)
 - Website: [www.sandhusoftware.com](https://www.sandhusoftware.com/)
 - Repository: `https://github.com/hsandhu01/Colorithm`
