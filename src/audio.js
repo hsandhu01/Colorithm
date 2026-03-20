@@ -1,5 +1,11 @@
 const TEMPO = 112;
 const STEPS_PER_BAR = 16;
+const AUDIO_ASSETS = {
+  theme: "../Raining-Tacos-Parry-Gripp-_-BooneBum.mp3",
+  select: "../roblox hi.mp3",
+  clear: "../yumyumyum.mp3",
+  reject: "../Oof - Roblox - QuickSounds.com (1).mp3"
+};
 
 export class AudioEngine {
   constructor() {
@@ -16,9 +22,12 @@ export class AudioEngine {
     this.enabled = true;
     this.unlocked = false;
     this.schedulerId = null;
+    this.musicLoopSource = null;
     this.nextMusicTime = 0;
     this.musicStep = 0;
     this.tempo = TEMPO;
+    this.assetBuffers = new Map();
+    this.assetLoadPromise = null;
     this.progression = [
       {
         root: 45,
@@ -55,6 +64,7 @@ export class AudioEngine {
     }
 
     this.unlocked = true;
+    this._ensureAssetLoad();
     this._syncEnabledState();
   }
 
@@ -70,9 +80,16 @@ export class AudioEngine {
       return;
     }
 
+    const hasAsset = this._playAssetAt("select", now, {
+      volume: 0.42,
+      duration: 0.36,
+      playbackRate: 0.96 + Math.random() * 0.08,
+      pan: -0.12 + Math.random() * 0.24
+    });
+
     this._pluck(this._midiToFreq(79), now, {
       duration: 0.14,
-      gain: 0.035,
+      gain: hasAsset ? 0.018 : 0.035,
       type: "triangle",
       destination: this.sfxBus,
       brightness: 3400,
@@ -80,7 +97,7 @@ export class AudioEngine {
     });
     this._pluck(this._midiToFreq(83), now + 0.025, {
       duration: 0.12,
-      gain: 0.028,
+      gain: hasAsset ? 0.014 : 0.028,
       type: "triangle",
       destination: this.sfxBus,
       brightness: 3800,
@@ -94,19 +111,19 @@ export class AudioEngine {
       return;
     }
 
-    this._kick(now, 0.24, 122);
+    this._kick(now, 0.28, 128);
     this._pluck(this._midiToFreq(52), now + 0.02, {
-      duration: 0.2,
-      gain: 0.04,
+      duration: 0.18,
+      gain: 0.05,
       type: "square",
       destination: this.sfxBus,
-      brightness: 1600,
+      brightness: 1800,
       pan: 0
     });
     this._noiseBurst(now + 0.01, {
-      duration: 0.05,
-      gain: 0.012,
-      filterFrequency: 2600,
+      duration: 0.06,
+      gain: 0.016,
+      filterFrequency: 3200,
       filterType: "bandpass",
       q: 1.2,
       destination: this.sfxBus
@@ -121,10 +138,16 @@ export class AudioEngine {
 
     const accent = Math.max(1, Math.min(lineCount, 4));
     const root = 74 + accent * 2 + Math.min(comboDepth, 3);
+    const hasAsset = this._playAssetAt("clear", now + 0.01, {
+      volume: 0.48 + accent * 0.04,
+      duration: 0.5,
+      playbackRate: 0.92 + accent * 0.05 + comboDepth * 0.015,
+      pan: 0
+    });
     this._kick(now, 0.34 + accent * 0.06, 132);
     this._pluck(this._midiToFreq(root), now + 0.04, {
       duration: 0.22,
-      gain: 0.055,
+      gain: hasAsset ? 0.04 : 0.055,
       type: "triangle",
       destination: this.sfxBus,
       brightness: 3200,
@@ -132,7 +155,7 @@ export class AudioEngine {
     });
     this._pluck(this._midiToFreq(root + 4), now + 0.08, {
       duration: 0.24,
-      gain: 0.05,
+      gain: hasAsset ? 0.036 : 0.05,
       type: "triangle",
       destination: this.sfxBus,
       brightness: 3600,
@@ -195,10 +218,39 @@ export class AudioEngine {
       return;
     }
 
+    this._playAssetAt("clear", now, {
+      volume: 0.34 + comboDepth * 0.04,
+      duration: 0.7,
+      playbackRate: 1.06 + Math.min(comboDepth, 4) * 0.04
+    });
     const chord = [81, 84, 88];
     this._pad(chord, now, 1.6, 0.026 + comboDepth * 0.003);
     this._kick(now + 0.04, 0.42, 138);
     this._kick(now + 0.22, 0.2, 122);
+  }
+
+  playReject() {
+    const now = this._now();
+    if (now == null) {
+      return;
+    }
+
+    const hasAsset = this._playAssetAt("reject", now, {
+      volume: 0.44,
+      duration: 0.5,
+      playbackRate: 1.02
+    });
+    if (!hasAsset) {
+      this._bass(40, now, 0.18, 0.06);
+    }
+    this._noiseBurst(now + 0.03, {
+      duration: 0.08,
+      gain: 0.01,
+      filterFrequency: 1100,
+      filterType: "lowpass",
+      q: 0.9,
+      destination: this.sfxBus
+    });
   }
 
   playGameOver() {
@@ -207,12 +259,17 @@ export class AudioEngine {
       return;
     }
 
+    const hasAsset = this._playAssetAt("reject", now, {
+      volume: 0.56,
+      duration: 0.95,
+      playbackRate: 0.88
+    });
     this._bass(45, now, 0.34, 0.09);
     this._bass(41, now + 0.18, 0.34, 0.08);
     this._bass(38, now + 0.36, 0.42, 0.075);
     this._noiseBurst(now + 0.08, {
       duration: 0.3,
-      gain: 0.014,
+      gain: hasAsset ? 0.01 : 0.014,
       filterFrequency: 700,
       filterType: "lowpass",
       q: 0.7,
@@ -268,6 +325,41 @@ export class AudioEngine {
     this.noiseBuffer = this._createNoiseBuffer();
   }
 
+  _ensureAssetLoad() {
+    if (this.assetLoadPromise || !this.context) {
+      return;
+    }
+
+    this.assetLoadPromise = this._loadAssets()
+      .then(() => {
+        if (this.enabled && this.unlocked) {
+          this._restartMusic();
+        }
+      })
+      .catch((error) => {
+        console.warn("Audio assets failed to load.", error);
+      });
+  }
+
+  async _loadAssets() {
+    const entries = Object.entries(AUDIO_ASSETS);
+    await Promise.all(
+      entries.map(async ([key, relativePath]) => {
+        try {
+          const response = await fetch(new URL(relativePath, import.meta.url));
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.arrayBuffer();
+          const buffer = await this.context.decodeAudioData(data);
+          this.assetBuffers.set(key, buffer);
+        } catch (error) {
+          console.warn(`Unable to load audio asset: ${relativePath}`, error);
+        }
+      })
+    );
+  }
+
   _syncEnabledState() {
     if (!this.context || !this.master) {
       return;
@@ -287,7 +379,33 @@ export class AudioEngine {
   }
 
   _startMusic() {
-    if (!this._ready() || this.schedulerId) {
+    if (!this._ready()) {
+      return;
+    }
+
+    if (this.assetBuffers.has("theme")) {
+      if (this.musicLoopSource) {
+        return;
+      }
+
+      const source = this.context.createBufferSource();
+      const gainNode = this.context.createGain();
+      source.buffer = this.assetBuffers.get("theme");
+      source.loop = true;
+      gainNode.gain.value = 0.28;
+      source.connect(gainNode);
+      gainNode.connect(this.musicBus);
+      source.start(this.context.currentTime + 0.02);
+      source.onended = () => {
+        if (this.musicLoopSource === source) {
+          this.musicLoopSource = null;
+        }
+      };
+      this.musicLoopSource = source;
+      return;
+    }
+
+    if (this.schedulerId) {
       return;
     }
 
@@ -301,6 +419,17 @@ export class AudioEngine {
       window.clearInterval(this.schedulerId);
       this.schedulerId = null;
     }
+
+    if (this.musicLoopSource) {
+      this.musicLoopSource.stop();
+      this.musicLoopSource.disconnect();
+      this.musicLoopSource = null;
+    }
+  }
+
+  _restartMusic() {
+    this._stopMusic();
+    this._startMusic();
   }
 
   _tickMusic() {
@@ -546,6 +675,40 @@ export class AudioEngine {
 
     source.start(time);
     source.stop(time + duration + 0.02);
+  }
+
+  _playAssetAt(name, time, options = {}) {
+    const buffer = this.assetBuffers.get(name);
+    if (!buffer || !this.context) {
+      return false;
+    }
+
+    const {
+      destination = this.sfxBus,
+      volume = 0.4,
+      duration = null,
+      playbackRate = 1,
+      pan = 0
+    } = options;
+
+    const source = this.context.createBufferSource();
+    const gainNode = this.context.createGain();
+    const panner = this.context.createStereoPanner();
+
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+    gainNode.gain.value = volume;
+    panner.pan.value = pan;
+
+    source.connect(gainNode);
+    gainNode.connect(panner);
+    panner.connect(destination);
+
+    source.start(time);
+    if (duration != null) {
+      source.stop(time + Math.min(duration, buffer.duration / Math.max(playbackRate, 0.01)));
+    }
+    return true;
   }
 
   _createNoiseBuffer() {

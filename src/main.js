@@ -439,6 +439,7 @@ async function onCanvasPointerDown() {
   const placement = getPlacementCells(piece, state.hover.row, state.hover.col);
   if (!placement.valid) {
     state.shake = 0.16;
+    audio.playReject();
     setStatus("That shard does not fit there.");
     return;
   }
