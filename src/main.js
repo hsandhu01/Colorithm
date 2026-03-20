@@ -113,6 +113,7 @@ const ghostGeometry = new RoundedBoxGeometry(0.88, 0.88, BLOCK_DEPTH * 0.92, 6, 
 const cellWellGeometry = new RoundedBoxGeometry(0.97, 0.97, 0.08, 4, 0.14);
 const sparkleGeometry = new THREE.IcosahedronGeometry(0.08, 0);
 const shardGeometry = new THREE.OctahedronGeometry(0.38, 0);
+const boardOverlayTexture = createBoardOverlayTexture();
 
 const ghostGroup = new THREE.Group();
 boardGroup.add(ghostGroup);
@@ -167,6 +168,18 @@ const boardBack = new THREE.Mesh(
 );
 boardBack.position.z = -0.02;
 boardGroup.add(boardBack);
+
+const boardOverlay = new THREE.Mesh(
+  new THREE.PlaneGeometry(BOARD_WIDTH, BOARD_HEIGHT),
+  new THREE.MeshBasicMaterial({
+    map: boardOverlayTexture,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false
+  })
+);
+boardOverlay.position.z = 0.18;
+boardGroup.add(boardOverlay);
 
 const cellWells = new THREE.Group();
 const cellWellMaterials = [
@@ -1071,6 +1084,75 @@ function setStatus(message) {
       statusText.textContent = "Complete a full horizontal row or vertical column.";
     }
   }, 2800);
+}
+
+function createBoardOverlayTexture() {
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = "#071224";
+  ctx.fillRect(0, 0, size, size);
+
+  const cellWidth = size / COLS;
+  const cellHeight = size / ROWS;
+
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      const x = col * cellWidth;
+      const y = row * cellHeight;
+      const inset = Math.min(cellWidth, cellHeight) * 0.07;
+      const width = cellWidth - inset * 2;
+      const height = cellHeight - inset * 2;
+      const gradient = ctx.createLinearGradient(x + inset, y + inset, x + inset, y + inset + height);
+      gradient.addColorStop(0, row % 2 === col % 2 ? "rgba(42, 72, 122, 0.86)" : "rgba(28, 42, 70, 0.82)");
+      gradient.addColorStop(1, row % 2 === col % 2 ? "rgba(24, 38, 66, 0.9)" : "rgba(16, 25, 45, 0.9)");
+      ctx.fillStyle = gradient;
+      roundRect(ctx, x + inset, y + inset, width, height, Math.min(width, height) * 0.12);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(77, 160, 255, 0.2)";
+      ctx.lineWidth = Math.max(1.5, cellWidth * 0.018);
+      roundRect(ctx, x + inset, y + inset, width, height, Math.min(width, height) * 0.12);
+      ctx.stroke();
+    }
+  }
+
+  ctx.strokeStyle = "rgba(180, 232, 255, 0.34)";
+  ctx.lineWidth = Math.max(2, size * 0.004);
+  for (let row = 0; row <= ROWS; row += 1) {
+    const y = row * cellHeight;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
+  }
+
+  for (let col = 0; col <= COLS; col += 1) {
+    const x = col * cellWidth;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, size);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return texture;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
 }
 
 function cellToLocal(row, col) {
