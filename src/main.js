@@ -36,6 +36,8 @@ const SHAPES = [
 ];
 
 const canvas = document.querySelector("#app");
+const topUi = document.querySelector(".top-ui");
+const lowerUi = document.querySelector(".lower-ui");
 const scoreValue = document.querySelector("#scoreValue");
 const bestValue = document.querySelector("#bestValue");
 const comboValue = document.querySelector("#comboValue");
@@ -1029,8 +1031,28 @@ function clearGhost() {
 }
 
 function updateSceneLayout() {
+  const phone = window.innerWidth <= 720;
   const stacked = window.innerWidth <= 1080;
-  if (stacked) {
+  if (phone) {
+    const topRail = topUi?.offsetHeight ?? 0;
+    const bottomRail = lowerUi?.offsetHeight ?? 0;
+    const availableWidth = window.innerWidth - 24;
+    const availableHeight = window.innerHeight - topRail - bottomRail - 32;
+    const widthSqueeze = THREE.MathUtils.clamp((420 - availableWidth) / 160, 0, 1);
+    const heightSqueeze = THREE.MathUtils.clamp((520 - availableHeight) / 180, 0, 1);
+    const laneBias = THREE.MathUtils.clamp((bottomRail - topRail) / Math.max(window.innerHeight, 1), -0.22, 0.22);
+
+    sceneLayout.boardX = 0;
+    sceneLayout.boardY = 0.5 + laneBias * 0.82 - heightSqueeze * 0.1;
+    sceneLayout.boardScale = 0.54 - heightSqueeze * 0.04 - widthSqueeze * 0.02;
+    sceneLayout.cameraBaseX = 0;
+    sceneLayout.cameraBaseY = 2.02 + heightSqueeze * 0.06;
+    sceneLayout.cameraBaseZ = 24.4 + heightSqueeze * 0.9 + widthSqueeze * 0.4;
+    sceneLayout.targetX = 0;
+    sceneLayout.targetY = 0.34 + laneBias * 0.22;
+    sceneLayout.ringX = 2.9;
+    sceneLayout.ringY = 0.86;
+  } else if (stacked) {
     sceneLayout.boardX = 0;
     sceneLayout.boardY = -0.72;
     sceneLayout.boardScale = 0.9;

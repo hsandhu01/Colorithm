@@ -519,8 +519,21 @@ kbd {
 }
 
 @media (max-width: 720px) {
+  html,
+  body {
+    overflow: hidden;
+  }
+
+  canvas,
+  .aurora,
+  .grain {
+    position: fixed;
+  }
+
   .hud {
-    padding: 16px;
+    position: fixed;
+    inset: 0;
+    padding: 0;
   }
 
   .hero,
@@ -531,18 +544,153 @@ kbd {
     border-radius: 22px;
   }
 
+  .top-ui,
+  .lower-ui {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    gap: 10px;
+  }
+
+  .top-ui {
+    top: max(12px, env(safe-area-inset-top));
+    flex-direction: column;
+  }
+
+  .lower-ui {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero {
+    padding: 8px 12px 10px;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.72rem, 7.6vw, 2.4rem);
+  }
+
+  .dek {
+    display: none;
+  }
+
+  .scoreboard {
+    padding: 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .stat {
+    min-height: 52px;
+    padding: 7px 9px;
+    border-radius: 14px;
+  }
+
+  .stat span {
+    font-size: 0.54rem;
+  }
+
+  .stat strong {
+    margin-top: 4px;
+    font-size: 1.12rem;
+  }
+
   .button-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .panel-header {
     align-items: start;
     flex-direction: column;
+    gap: 6px;
   }
 
   .panel-hint {
     max-width: none;
     text-align: left;
+    display: none;
+  }
+
+  .tray-panel,
+  .side-panel {
+    padding: 8px;
+  }
+
+  .tray-panel h2,
+  .side-panel h2 {
+    font-size: 0.98rem;
+  }
+
+  .tray-panel .panel-header {
+    display: none;
+  }
+
+  .piece-tray {
+    margin-top: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .piece-card {
+    min-height: 74px;
+    padding: 6px;
+    gap: 4px;
+    border-radius: 14px;
+    align-content: center;
+  }
+
+  .piece-meta {
+    justify-content: end;
+    min-height: 0;
+  }
+
+  .piece-name {
+    display: none;
+  }
+
+  .piece-copy {
+    display: none;
+  }
+
+  .piece-rot {
+    padding: 2px 5px;
+    font-size: 0.54rem;
+  }
+
+  .mini-grid {
+    gap: 3px;
+    justify-content: center;
+  }
+
+  .mini-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
+  }
+
+  .side-panel {
+    gap: 8px;
+  }
+
+  .side-panel .panel-header {
+    display: none;
+  }
+
+  .action-button,
+  .launch-button {
+    padding: 8px 7px;
+    border-radius: 14px;
+    font-size: 0.72rem;
+  }
+
+  .tips {
+    display: none;
+  }
+
+  .status-pill {
+    display: none;
   }
 }
 
