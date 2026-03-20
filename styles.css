@@ -7,6 +7,8 @@
   --line: rgba(255, 255, 255, 0.08);
   --glass: linear-gradient(180deg, rgba(18, 28, 45, 0.9), rgba(7, 12, 24, 0.78));
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+  --left-rail: clamp(330px, 20vw, 430px);
+  --right-rail: clamp(300px, 19vw, 390px);
 }
 
 * {
@@ -105,8 +107,8 @@ canvas {
 }
 
 .hero {
-  width: min(560px, calc(100vw - 520px));
-  padding: 18px 20px 20px;
+  width: var(--left-rail);
+  padding: 16px 18px 18px;
   border-radius: 24px;
   pointer-events: auto;
 }
@@ -135,29 +137,29 @@ canvas {
 }
 
 .hero h1 {
-  font-size: clamp(2.5rem, 5vw, 4.8rem);
+  font-size: clamp(2.25rem, 4.2vw, 4.15rem);
 }
 
 .dek {
   margin: 12px 0 0;
-  max-width: 40ch;
+  max-width: 34ch;
   color: var(--muted);
-  font-size: 0.98rem;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  line-height: 1.48;
 }
 
 .scoreboard {
-  padding: 12px;
+  padding: 10px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(96px, 118px));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(84px, 104px));
+  gap: 10px;
   pointer-events: auto;
   border-radius: 24px;
 }
 
 .stat {
-  min-height: 108px;
-  padding: 14px 16px;
+  min-height: 96px;
+  padding: 12px 14px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -174,7 +176,7 @@ canvas {
 .stat strong {
   display: block;
   margin-top: 8px;
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
   font-family: "Bricolage Grotesque", sans-serif;
 }
 
@@ -191,11 +193,11 @@ canvas {
 }
 
 .tray-panel {
-  width: min(460px, calc(100vw - 470px));
+  width: var(--left-rail);
 }
 
 .side-panel {
-  width: min(420px, 32vw);
+  width: var(--right-rail);
 }
 
 .panel-header {

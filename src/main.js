@@ -41,6 +41,10 @@ const bestValue = document.querySelector("#bestValue");
 const comboValue = document.querySelector("#comboValue");
 const pieceTray = document.querySelector("#pieceTray");
 const statusText = document.querySelector("#statusText");
+const heroPanel = document.querySelector(".hero");
+const scoreboardPanel = document.querySelector(".scoreboard");
+const trayPanel = document.querySelector(".tray-panel");
+const sidePanel = document.querySelector(".side-panel");
 const rotateLeftButton = document.querySelector("#rotateLeftButton");
 const rotateRightButton = document.querySelector("#rotateRightButton");
 const soundButton = document.querySelector("#soundButton");
@@ -58,7 +62,7 @@ scene.background = new THREE.Color(0x060d17);
 scene.fog = new THREE.FogExp2(0x050912, 0.045);
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 200);
-camera.position.set(0, 2.2, 16);
+camera.position.set(0.26, 2.12, 17.2);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -79,7 +83,7 @@ composer.addPass(
 );
 
 const boardGroup = new THREE.Group();
-boardGroup.position.set(0, -0.95, 0);
+boardGroup.position.set(0.68, -0.96, 0);
 boardGroup.rotation.x = -0.28;
 scene.add(boardGroup);
 
@@ -99,7 +103,7 @@ const backgroundRing = new THREE.Mesh(
 );
 backgroundRing.rotation.x = Math.PI * 0.42;
 backgroundRing.rotation.y = Math.PI * 0.15;
-backgroundRing.position.set(3.4, 0.4, -12);
+backgroundRing.position.set(4.1, 0.28, -12);
 backgroundRing.scale.setScalar(1.16);
 scene.add(backgroundRing);
 
@@ -289,11 +293,23 @@ const state = {
 };
 
 const uniqueRotations = new Map();
+const sceneLayout = {
+  boardX: 0.68,
+  boardY: -0.96,
+  cameraBaseX: 0.26,
+  cameraBaseY: 2.12,
+  cameraBaseZ: 17.2,
+  targetX: 0.34,
+  targetY: -0.12,
+  ringX: 4.1,
+  ringY: 0.28
+};
 
 bestValue.textContent = formatNumber(state.best);
 
 resetGame();
 attachEvents();
+updateSceneLayout();
 maybeAutoStart();
 animate();
 
@@ -345,6 +361,7 @@ function onResize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  updateSceneLayout();
 }
 
 function onKeyDown(event) {
@@ -924,9 +941,12 @@ function animate() {
 
   const shakeAmount = state.shake;
   state.shake = Math.max(0, state.shake - delta * 0.9);
-  camera.position.x = Math.sin(elapsed * 1.8) * 0.08 + (Math.random() - 0.5) * shakeAmount;
-  camera.position.y = 2.12 + Math.cos(elapsed * 1.2) * 0.12 + (Math.random() - 0.5) * shakeAmount;
-  camera.lookAt(0, -0.1, 0);
+  camera.position.x =
+    sceneLayout.cameraBaseX + Math.sin(elapsed * 1.8) * 0.08 + (Math.random() - 0.5) * shakeAmount;
+  camera.position.y =
+    sceneLayout.cameraBaseY + Math.cos(elapsed * 1.2) * 0.12 + (Math.random() - 0.5) * shakeAmount;
+  camera.position.z = sceneLayout.cameraBaseZ;
+  camera.lookAt(sceneLayout.targetX, sceneLayout.targetY, 0);
 
   backgroundRing.rotation.z += delta * 0.04;
 
@@ -989,6 +1009,40 @@ function clearGhost() {
     });
   }
   ghostGroup.clear();
+}
+
+function updateSceneLayout() {
+  const stacked = window.innerWidth <= 1080;
+  if (stacked) {
+    sceneLayout.boardX = 0;
+    sceneLayout.boardY = -0.82;
+    sceneLayout.cameraBaseX = 0;
+    sceneLayout.cameraBaseY = 2.2;
+    sceneLayout.cameraBaseZ = 16.3;
+    sceneLayout.targetX = 0;
+    sceneLayout.targetY = -0.1;
+    sceneLayout.ringX = 3.2;
+    sceneLayout.ringY = 0.4;
+  } else {
+    const leftRail = Math.max(heroPanel?.offsetWidth ?? 0, trayPanel?.offsetWidth ?? 0);
+    const rightRail = Math.max(scoreboardPanel?.offsetWidth ?? 0, sidePanel?.offsetWidth ?? 0);
+    const railImbalance = (leftRail - rightRail) / Math.max(window.innerWidth, 1);
+    const availableCenter = window.innerWidth - leftRail - rightRail - 96;
+    const squeeze = THREE.MathUtils.clamp((860 - availableCenter) / 340, 0, 1);
+
+    sceneLayout.boardX = THREE.MathUtils.clamp(0.62 + railImbalance * 1.6, 0.42, 0.92);
+    sceneLayout.boardY = -0.96;
+    sceneLayout.cameraBaseX = sceneLayout.boardX * 0.38;
+    sceneLayout.cameraBaseY = 2.1;
+    sceneLayout.cameraBaseZ = 17.2 + squeeze * 1.2;
+    sceneLayout.targetX = sceneLayout.boardX * 0.5;
+    sceneLayout.targetY = -0.12;
+    sceneLayout.ringX = 4 + sceneLayout.boardX * 0.35;
+    sceneLayout.ringY = 0.28;
+  }
+
+  boardGroup.position.set(sceneLayout.boardX, sceneLayout.boardY, 0);
+  backgroundRing.position.set(sceneLayout.ringX, sceneLayout.ringY, -12);
 }
 
 function updateScoreboard() {
