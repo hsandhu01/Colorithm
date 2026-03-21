@@ -12,7 +12,6 @@ const BOARD_WIDTH = COLS * CELL_SIZE;
 const BOARD_HEIGHT = ROWS * CELL_SIZE;
 const BLOCK_DEPTH = 0.74;
 const STORAGE_KEY = "colorithm-best-score";
-const TOUCH_TAP_SLOP = 18;
 
 const COLORS = [
   { id: "dragonfruit", label: "Dragonfruit", hex: 0xff4da6, emissive: 0x631340, css: "#ff4da6" },
@@ -295,8 +294,6 @@ const state = {
   selectedPieceId: null,
   hover: null,
   touchPointerId: null,
-  touchPlacementArmed: false,
-  touchPlacementKey: null,
   touchStartX: 0,
   touchStartY: 0,
   touchDragDistance: 0,
@@ -425,10 +422,6 @@ function onPointerMove(event) {
   if (state.touchPointerId != null) {
     updateTouchGesture(event);
     if (nextHover) {
-      if (state.touchPlacementArmed && state.touchDragDistance <= TOUCH_TAP_SLOP) {
-        updateGhost();
-        return;
-      }
       if (!isSameHover(nextHover, state.hover)) {
         clearTouchPlacementArm();
       }
@@ -466,16 +459,13 @@ async function onCanvasPointerDown(event) {
 
   event.preventDefault();
   if (isTouchInteraction(event)) {
+    clearTouchPlacementArm();
     state.touchPointerId = event.pointerId;
     state.touchStartX = event.clientX;
     state.touchStartY = event.clientY;
     state.touchDragDistance = 0;
     canvas.setPointerCapture?.(event.pointerId);
-    setStatus(
-      state.touchPlacementArmed
-        ? "Preview ready. Tap again to place, or drag to move it."
-        : "Drag on the grid, then lift to lock the preview."
-    );
+    setStatus("Drag on the grid, then lift to place.");
     return;
   }
 
@@ -501,24 +491,11 @@ async function onCanvasPointerUp(event) {
   }
 
   const piece = getSelectedPiece();
-  if (piece && state.touchPlacementArmed && state.hover && state.touchDragDistance <= TOUCH_TAP_SLOP) {
-    await placePieceAtHover(piece, state.hover);
-    return;
-  }
-
   const hover = getHoverCellFromEvent(event) ?? state.hover;
   state.hover = hover;
   updateGhost();
 
   if (!piece || !hover) {
-    return;
-  }
-
-  const hoverKey = getHoverKey(hover);
-  if (!state.touchPlacementArmed || state.touchPlacementKey !== hoverKey) {
-    state.touchPlacementArmed = true;
-    state.touchPlacementKey = hoverKey;
-    setStatus("Preview locked. Tap again to place, or drag to move it.");
     return;
   }
 
@@ -686,7 +663,7 @@ function renderTray() {
       audio.playSelect();
       setStatus(
         window.innerWidth <= 720
-          ? `${piece.name} primed. Drag on the grid, lift to lock it, then tap to place.`
+          ? `${piece.name} primed. Drag on the grid, then lift to place it.`
           : `${piece.name} primed. Tap or click a cell to place it.`
       );
     });
@@ -715,8 +692,6 @@ function updateViewportCssVars() {
 }
 
 function clearTouchPlacementArm() {
-  state.touchPlacementArmed = false;
-  state.touchPlacementKey = null;
   state.touchDragDistance = 0;
 }
 
@@ -753,10 +728,6 @@ function getHoverCellFromEvent(event) {
   }
 
   return { row, col };
-}
-
-function getHoverKey(cell) {
-  return cell ? `${cell.row},${cell.col}` : null;
 }
 
 function isSameHover(a, b) {
