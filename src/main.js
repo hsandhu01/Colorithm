@@ -294,6 +294,7 @@ const state = {
   selectedPieceId: null,
   hover: null,
   touchPointerId: null,
+  touchMoved: false,
   resolving: false,
   gameOver: false,
   score: 0,
@@ -415,7 +416,15 @@ function onPointerMove(event) {
     return;
   }
 
-  state.hover = getHoverCellFromEvent(event);
+  const nextHover = getHoverCellFromEvent(event);
+  if (state.touchPointerId != null) {
+    state.touchMoved = true;
+    if (nextHover) {
+      state.hover = nextHover;
+    }
+  } else {
+    state.hover = nextHover;
+  }
 
   updateGhost();
 }
@@ -441,6 +450,7 @@ async function onCanvasPointerDown(event) {
   event.preventDefault();
   if (isTouchInteraction(event)) {
     state.touchPointerId = event.pointerId;
+    state.touchMoved = false;
     canvas.setPointerCapture?.(event.pointerId);
     setStatus("Drag on the grid, then lift to place.");
     return;
@@ -470,6 +480,7 @@ async function onCanvasPointerUp(event) {
   const hover = getHoverCellFromEvent(event) ?? state.hover;
   state.hover = hover;
   updateGhost();
+  state.touchMoved = false;
 
   if (!piece || !hover) {
     return;
@@ -485,6 +496,7 @@ function onCanvasPointerCancel(event) {
 
   canvas.releasePointerCapture?.(event.pointerId);
   state.touchPointerId = null;
+  state.touchMoved = false;
 }
 
 async function placePieceAtHover(piece, hover) {
@@ -521,6 +533,7 @@ function resetGame() {
   state.resolving = false;
   state.hover = null;
   state.touchPointerId = null;
+  state.touchMoved = false;
   state.selectedPieceId = null;
   state.shake = 0;
   if (state.statusTimeout) {
@@ -1155,7 +1168,7 @@ function updateSceneLayout() {
     const topRail = topUi?.offsetHeight ?? 0;
     const bottomRail = lowerUi?.offsetHeight ?? 0;
     const availableWidth = viewport.width - 24;
-    const availableHeight = viewport.height - topRail - bottomRail - 28;
+    const availableHeight = viewport.height - topRail - bottomRail - 44;
     const widthSqueeze = THREE.MathUtils.clamp((390 - availableWidth) / 120, 0, 1);
     const heightSqueeze = THREE.MathUtils.clamp((460 - availableHeight) / 180, 0, 1);
     const laneBias = THREE.MathUtils.clamp((bottomRail - topRail) / Math.max(viewport.height, 1), -0.18, 0.18);

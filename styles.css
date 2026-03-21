@@ -923,7 +923,7 @@ kbd {
   }
 
   .lower-ui {
-    bottom: calc(12px + env(safe-area-inset-bottom) + var(--viewport-offset-bottom));
+    bottom: calc(24px + env(safe-area-inset-bottom) + var(--viewport-offset-bottom));
     display: grid;
     grid-template-columns: minmax(0, 1fr) 104px;
     align-items: end;
