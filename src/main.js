@@ -294,7 +294,8 @@ const state = {
   selectedPieceId: null,
   hover: null,
   touchPointerId: null,
-  touchMoved: false,
+  touchPlacementArmed: false,
+  touchPlacementKey: null,
   resolving: false,
   gameOver: false,
   score: 0,
@@ -418,8 +419,10 @@ function onPointerMove(event) {
 
   const nextHover = getHoverCellFromEvent(event);
   if (state.touchPointerId != null) {
-    state.touchMoved = true;
     if (nextHover) {
+      if (!isSameHover(nextHover, state.hover)) {
+        clearTouchPlacementArm();
+      }
       state.hover = nextHover;
     }
   } else {
@@ -439,7 +442,12 @@ async function onCanvasPointerDown(event) {
   }
 
   const piece = getSelectedPiece();
-  const hover = getHoverCellFromEvent(event) ?? state.hover;
+  const directHover = getHoverCellFromEvent(event);
+  if (isTouchInteraction(event) && !directHover) {
+    return;
+  }
+
+  const hover = directHover ?? state.hover;
   state.hover = hover;
   updateGhost();
 
@@ -450,9 +458,8 @@ async function onCanvasPointerDown(event) {
   event.preventDefault();
   if (isTouchInteraction(event)) {
     state.touchPointerId = event.pointerId;
-    state.touchMoved = false;
     canvas.setPointerCapture?.(event.pointerId);
-    setStatus("Drag on the grid, then lift to place.");
+    setStatus("Drag on the grid, then lift to preview.");
     return;
   }
 
@@ -480,9 +487,16 @@ async function onCanvasPointerUp(event) {
   const hover = getHoverCellFromEvent(event) ?? state.hover;
   state.hover = hover;
   updateGhost();
-  state.touchMoved = false;
 
   if (!piece || !hover) {
+    return;
+  }
+
+  const hoverKey = getHoverKey(hover);
+  if (!state.touchPlacementArmed || state.touchPlacementKey !== hoverKey) {
+    state.touchPlacementArmed = true;
+    state.touchPlacementKey = hoverKey;
+    setStatus("Preview locked. Tap the highlighted spot again to place.");
     return;
   }
 
@@ -496,7 +510,6 @@ function onCanvasPointerCancel(event) {
 
   canvas.releasePointerCapture?.(event.pointerId);
   state.touchPointerId = null;
-  state.touchMoved = false;
 }
 
 async function placePieceAtHover(piece, hover) {
@@ -518,6 +531,7 @@ function rotateSelected(direction) {
     return;
   }
 
+  clearTouchPlacementArm();
   piece.rotation = mod(piece.rotation + direction, 4);
   renderTray();
   updateGhost();
@@ -533,7 +547,7 @@ function resetGame() {
   state.resolving = false;
   state.hover = null;
   state.touchPointerId = null;
-  state.touchMoved = false;
+  clearTouchPlacementArm();
   state.selectedPieceId = null;
   state.shake = 0;
   if (state.statusTimeout) {
@@ -643,12 +657,13 @@ function renderTray() {
       }
 
       state.selectedPieceId = piece.id;
+      clearTouchPlacementArm();
       renderTray();
       updateGhost();
       audio.playSelect();
       setStatus(
         window.innerWidth <= 720
-          ? `${piece.name} primed. Drag on the grid, then lift to place.`
+          ? `${piece.name} primed. Drag on the grid, then lift to preview.`
           : `${piece.name} primed. Tap or click a cell to place it.`
       );
     });
@@ -676,6 +691,11 @@ function updateViewportCssVars() {
   document.documentElement.style.setProperty("--viewport-offset-bottom", `${bottomOffset}px`);
 }
 
+function clearTouchPlacementArm() {
+  state.touchPlacementArmed = false;
+  state.touchPlacementKey = null;
+}
+
 function updatePointerFromEvent(event) {
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -701,6 +721,14 @@ function getHoverCellFromEvent(event) {
   return { row, col };
 }
 
+function getHoverKey(cell) {
+  return cell ? `${cell.row},${cell.col}` : null;
+}
+
+function isSameHover(a, b) {
+  return Boolean(a && b && a.row === b.row && a.col === b.col);
+}
+
 function isTouchInteraction(event) {
   return event.pointerType === "touch" || event.pointerType === "pen";
 }
@@ -723,6 +751,7 @@ function syncResponsiveLabels(soundEnabled) {
 async function placeSelectedPiece(piece, placementCells) {
   const runId = state.runId;
   state.resolving = true;
+  clearTouchPlacementArm();
   const color = COLORS[piece.colorIndex];
 
   for (const { row, col } of placementCells) {
