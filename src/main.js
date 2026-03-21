@@ -12,6 +12,7 @@ const BOARD_WIDTH = COLS * CELL_SIZE;
 const BOARD_HEIGHT = ROWS * CELL_SIZE;
 const BLOCK_DEPTH = 0.74;
 const STORAGE_KEY = "colorithm-best-score";
+const TOUCH_TAP_SLOP = 18;
 
 const COLORS = [
   { id: "dragonfruit", label: "Dragonfruit", hex: 0xff4da6, emissive: 0x631340, css: "#ff4da6" },
@@ -296,6 +297,9 @@ const state = {
   touchPointerId: null,
   touchPlacementArmed: false,
   touchPlacementKey: null,
+  touchStartX: 0,
+  touchStartY: 0,
+  touchDragDistance: 0,
   resolving: false,
   gameOver: false,
   score: 0,
@@ -419,7 +423,12 @@ function onPointerMove(event) {
 
   const nextHover = getHoverCellFromEvent(event);
   if (state.touchPointerId != null) {
+    updateTouchGesture(event);
     if (nextHover) {
+      if (state.touchPlacementArmed && state.touchDragDistance <= TOUCH_TAP_SLOP) {
+        updateGhost();
+        return;
+      }
       if (!isSameHover(nextHover, state.hover)) {
         clearTouchPlacementArm();
       }
@@ -458,8 +467,15 @@ async function onCanvasPointerDown(event) {
   event.preventDefault();
   if (isTouchInteraction(event)) {
     state.touchPointerId = event.pointerId;
+    state.touchStartX = event.clientX;
+    state.touchStartY = event.clientY;
+    state.touchDragDistance = 0;
     canvas.setPointerCapture?.(event.pointerId);
-    setStatus("Drag on the grid, then lift to preview.");
+    setStatus(
+      state.touchPlacementArmed
+        ? "Preview ready. Tap again to place, or drag to move it."
+        : "Drag on the grid, then lift to lock the preview."
+    );
     return;
   }
 
@@ -472,6 +488,7 @@ async function onCanvasPointerUp(event) {
   }
 
   event.preventDefault();
+  updateTouchGesture(event);
   canvas.releasePointerCapture?.(event.pointerId);
   state.touchPointerId = null;
 
@@ -484,6 +501,11 @@ async function onCanvasPointerUp(event) {
   }
 
   const piece = getSelectedPiece();
+  if (piece && state.touchPlacementArmed && state.hover && state.touchDragDistance <= TOUCH_TAP_SLOP) {
+    await placePieceAtHover(piece, state.hover);
+    return;
+  }
+
   const hover = getHoverCellFromEvent(event) ?? state.hover;
   state.hover = hover;
   updateGhost();
@@ -496,7 +518,7 @@ async function onCanvasPointerUp(event) {
   if (!state.touchPlacementArmed || state.touchPlacementKey !== hoverKey) {
     state.touchPlacementArmed = true;
     state.touchPlacementKey = hoverKey;
-    setStatus("Preview locked. Tap the highlighted spot again to place.");
+    setStatus("Preview locked. Tap again to place, or drag to move it.");
     return;
   }
 
@@ -510,6 +532,7 @@ function onCanvasPointerCancel(event) {
 
   canvas.releasePointerCapture?.(event.pointerId);
   state.touchPointerId = null;
+  state.touchDragDistance = 0;
 }
 
 async function placePieceAtHover(piece, hover) {
@@ -663,7 +686,7 @@ function renderTray() {
       audio.playSelect();
       setStatus(
         window.innerWidth <= 720
-          ? `${piece.name} primed. Drag on the grid, then lift to preview.`
+          ? `${piece.name} primed. Drag on the grid, lift to lock it, then tap to place.`
           : `${piece.name} primed. Tap or click a cell to place it.`
       );
     });
@@ -694,12 +717,23 @@ function updateViewportCssVars() {
 function clearTouchPlacementArm() {
   state.touchPlacementArmed = false;
   state.touchPlacementKey = null;
+  state.touchDragDistance = 0;
 }
 
 function updatePointerFromEvent(event) {
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function updateTouchGesture(event) {
+  if (state.touchPointerId == null || event.pointerId !== state.touchPointerId) {
+    return;
+  }
+
+  const dx = event.clientX - state.touchStartX;
+  const dy = event.clientY - state.touchStartY;
+  state.touchDragDistance = Math.max(state.touchDragDistance, Math.hypot(dx, dy));
 }
 
 function getHoverCellFromEvent(event) {
