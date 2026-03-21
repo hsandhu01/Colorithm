@@ -636,8 +636,8 @@ function renderTray() {
 
     const miniGrid = document.createElement("div");
     miniGrid.className = "mini-grid";
-    miniGrid.style.gridTemplateColumns = `repeat(${bounds.width}, 22px)`;
-    miniGrid.style.gridTemplateRows = `repeat(${bounds.height}, 22px)`;
+    miniGrid.style.gridTemplateColumns = `repeat(${bounds.width}, var(--mini-cell-size))`;
+    miniGrid.style.gridTemplateRows = `repeat(${bounds.height}, var(--mini-cell-size))`;
 
     const lookup = new Set(rotated.map(([x, y]) => `${x},${y}`));
     for (let row = 0; row < bounds.height; row += 1) {

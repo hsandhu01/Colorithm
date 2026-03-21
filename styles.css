@@ -9,6 +9,8 @@
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
   --left-rail: clamp(330px, 20vw, 430px);
   --right-rail: clamp(300px, 19vw, 390px);
+  --mini-cell-size: clamp(14px, 1.1vw, 18px);
+  --mini-cell-gap: clamp(4px, 0.45vw, 6px);
   --viewport-offset-top: 0px;
   --viewport-offset-bottom: 0px;
 }
@@ -118,7 +120,25 @@ canvas {
 }
 
 .hero-copy {
-  max-width: 48ch;
+  display: grid;
+  gap: 12px;
+  max-width: none;
+}
+
+.hero-mark {
+  width: min(100%, 368px);
+  aspect-ratio: 16 / 6.2;
+  overflow: hidden;
+}
+
+.hero-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.12) translateY(-1%);
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.24));
 }
 
 .eyebrow,
@@ -145,11 +165,11 @@ canvas {
 }
 
 .dek {
-  margin: 12px 0 0;
-  max-width: 34ch;
+  margin: 0;
+  max-width: 33ch;
   color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1.48;
+  font-size: 0.92rem;
+  line-height: 1.42;
 }
 
 .scoreboard {
@@ -182,6 +202,9 @@ canvas {
   margin-top: 8px;
   font-size: clamp(1.3rem, 2.4vw, 2rem);
   font-family: "Bricolage Grotesque", sans-serif;
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 .lower-ui {
@@ -227,14 +250,16 @@ canvas {
 .piece-tray {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(104px, 124px));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  justify-content: stretch;
   align-items: start;
   gap: 12px;
 }
 
 .piece-card {
   position: relative;
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
   display: grid;
   align-content: start;
@@ -293,19 +318,28 @@ canvas {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   align-items: start;
+}
+
+.piece-meta > div {
+  min-width: 0;
 }
 
 .piece-name {
   margin: 0;
   font-family: "Bricolage Grotesque", sans-serif;
-  font-size: 1.02rem;
+  font-size: 0.98rem;
+  line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .piece-copy {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 0.78rem;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
 .piece-rot {
@@ -321,13 +355,13 @@ canvas {
   z-index: 1;
   display: grid;
   justify-content: start;
-  gap: 6px;
+  gap: var(--mini-cell-gap);
 }
 
 .mini-cell {
-  width: 22px;
-  height: 22px;
-  border-radius: 8px;
+  width: var(--mini-cell-size);
+  height: var(--mini-cell-size);
+  border-radius: calc(var(--mini-cell-size) * 0.36);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0.08)),
     var(--piece-color);
@@ -722,8 +756,8 @@ kbd {
     padding: 14px 16px 16px;
   }
 
-  .hero h1 {
-    font-size: clamp(2rem, 3.8vw, 3.5rem);
+  .hero-mark {
+    width: min(100%, 340px);
   }
 
   .dek {
@@ -767,7 +801,7 @@ kbd {
   }
 
   .piece-tray {
-    grid-template-columns: repeat(3, minmax(92px, 110px));
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 10px;
   }
 
@@ -787,12 +821,6 @@ kbd {
 
   .mini-grid {
     gap: 5px;
-  }
-
-  .mini-cell {
-    width: 18px;
-    height: 18px;
-    border-radius: 7px;
   }
 
   .side-panel {
@@ -821,8 +849,8 @@ kbd {
     font-size: 0.68rem;
   }
 
-  .hero h1 {
-    font-size: clamp(1.8rem, 3.2vw, 3rem);
+  .hero-mark {
+    width: min(100%, 312px);
   }
 
   .dek {
@@ -836,7 +864,7 @@ kbd {
   }
 
   .piece-tray {
-    grid-template-columns: repeat(3, minmax(86px, 102px));
+    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
     gap: 8px;
   }
 
@@ -853,12 +881,6 @@ kbd {
   .piece-copy,
   .tips {
     font-size: 0.74rem;
-  }
-
-  .mini-cell {
-    width: 16px;
-    height: 16px;
-    border-radius: 6px;
   }
 
   .action-button,
@@ -884,20 +906,28 @@ kbd {
   }
 
   .hero-copy {
+    gap: 8px;
+  }
+
+  .hero-mark {
+    width: 100%;
     max-width: none;
+    aspect-ratio: 16 / 6.05;
   }
 
-  .eyebrow {
-    margin-bottom: 4px;
-    font-size: 0.62rem;
-  }
-
-  .hero h1 {
-    font-size: clamp(1.55rem, 7.2vw, 2.15rem);
+  .hero-logo {
+    transform: scale(1.15) translateY(-1.5%);
   }
 
   .dek {
-    display: none;
+    display: -webkit-box;
+    max-width: none;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .scoreboard {
@@ -980,12 +1010,6 @@ kbd {
     justify-content: center;
   }
 
-  .mini-cell {
-    width: 15px;
-    height: 15px;
-    border-radius: 5px;
-  }
-
   .side-panel {
     width: 104px;
     gap: 8px;
@@ -1007,16 +1031,12 @@ kbd {
 }
 
 @media (max-width: 420px) {
-  .eyebrow {
-    display: none;
-  }
-
   .hero {
     padding: 8px 10px;
   }
 
-  .hero h1 {
-    font-size: clamp(1.32rem, 6.4vw, 1.82rem);
+  .hero-mark {
+    aspect-ratio: 16 / 5.9;
   }
 
   .scoreboard {
