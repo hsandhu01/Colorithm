@@ -346,6 +346,7 @@ const state = {
   particles: [],
   lineFlashes: [],
   shockwaves: [],
+  powerSweeps: [],
   statusTimeout: null,
   shake: 0,
   runId: 0
@@ -606,7 +607,7 @@ function resetGame() {
   renderTray();
   updateGhost();
   syncResponsiveLabels(audio.enabled);
-  setStatus("Pick a shard, chase full lines, and watch for power cubes.");
+  setStatus("Pick a shard, chase full lines, and use power cubes to blast open space.");
 }
 
 function clearBoardMeshes() {
@@ -629,6 +630,11 @@ function clearBoardMeshes() {
     shockwave.mesh.material.dispose();
   }
   state.shockwaves = [];
+  for (const sweep of state.powerSweeps) {
+    boardGroup.remove(sweep.mesh);
+    sweep.mesh.material.dispose();
+  }
+  state.powerSweeps = [];
 }
 
 function refillPieces() {
@@ -955,16 +961,19 @@ async function resolveBoard(runId, pendingTriggerCells = []) {
     comboDepth += 1;
     const totalCleared = targets.length;
     const clearedLines = clearState.rows.length + clearState.cols.length;
+    const powerLaneCount = clearState.laneBursts.length;
     const specialTriggerCount = clearState.specialBursts.length;
-    const scoreGain = totalCleared * 125 * comboDepth + specialTriggerCount * 220;
+    const scoreGain = totalCleared * 125 * comboDepth + specialTriggerCount * 220 + powerLaneCount * 90;
     state.score += scoreGain;
     state.lastCombo = comboDepth;
     state.best = Math.max(state.best, state.score);
     localStorage.setItem(STORAGE_KEY, String(state.best));
     updateScoreboard();
     spawnLineFlashes(clearState.rows, clearState.cols);
+    spawnPowerSweeps(clearState.laneBursts);
     for (const burst of clearState.specialBursts) {
       spawnShockwave(burst.row, burst.col, burst.accentHex, burst.id === "nova" ? 2.3 : 2.05);
+      spawnDetonationBurst(burst.row, burst.col, burst.accentHex);
     }
 
     for (const { row, col } of targets) {
@@ -973,20 +982,28 @@ async function resolveBoard(runId, pendingTriggerCells = []) {
         continue;
       }
 
-      spawnBurst(block.target, block.specialId ? { hex: block.specialAccentHex } : COLORS[block.colorIndex]);
+      spawnBurst(block.target, block.specialId ? { hex: block.specialAccentHex } : COLORS[block.colorIndex], {
+        count: block.specialId ? 20 : 10,
+        spread: block.specialId ? 0.14 : 0.08,
+        lifeMin: block.specialId ? 0.55 : 0.45,
+        lifeMax: block.specialId ? 0.9 : 0.73,
+        scaleMin: block.specialId ? 0.72 : 0.6,
+        scaleMax: block.specialId ? 1.2 : 1.2,
+        useShards: Boolean(block.specialId)
+      });
       disposeBlock(block);
       state.blockRegistry.delete(block.id);
       state.board[row][col] = null;
     }
 
-    state.shake = Math.min(0.44, 0.12 + comboDepth * 0.05 + specialTriggerCount * 0.05);
+    state.shake = Math.min(0.56, 0.12 + comboDepth * 0.05 + specialTriggerCount * 0.08 + powerLaneCount * 0.03);
     setStatus(
       comboDepth > 1
         ? `Combo x${comboDepth}. ${describeClearEvent(clearState)} for ${formatNumber(scoreGain)}.`
         : `${describeClearEvent(clearState)} for ${formatNumber(scoreGain)}.`
     );
-    if (specialTriggerCount > 0) {
-      audio.playSpecial(specialTriggerCount, comboDepth, clearedLines);
+    if (specialTriggerCount > 0 || powerLaneCount > 0) {
+      audio.playSpecial(specialTriggerCount + powerLaneCount, comboDepth, clearedLines);
     } else {
       audio.playClear(clearedLines, comboDepth);
     }
@@ -1049,6 +1066,7 @@ function expandClearTargets(baseState) {
   const cols = new Set(baseState.cols);
   const processedSpecials = new Set();
   const specialBursts = [];
+  const laneBursts = [];
 
   const addTarget = (row, col) => {
     if (!isInside(row, col)) {
@@ -1078,11 +1096,8 @@ function expandClearTargets(baseState) {
     });
 
     const effect = getSpecialEffect(block, row, col);
-    for (const effectRow of effect.rows) {
-      rows.add(effectRow);
-    }
-    for (const effectCol of effect.cols) {
-      cols.add(effectCol);
+    for (const laneBurst of effect.laneBursts) {
+      laneBursts.push(laneBurst);
     }
     for (const cell of effect.cells) {
       addTarget(cell.row, cell.col);
@@ -1097,7 +1112,8 @@ function expandClearTargets(baseState) {
     cells: [...marked.values()],
     rows: [...rows],
     cols: [...cols],
-    specialBursts
+    specialBursts,
+    laneBursts
   };
 }
 
@@ -1105,8 +1121,7 @@ function getSpecialEffect(block, row, col) {
   if (block.specialId === "nova") {
     return {
       cells: getSquareArea(row, col, 1),
-      rows: [],
-      cols: []
+      laneBursts: []
     };
   }
 
@@ -1114,15 +1129,13 @@ function getSpecialEffect(block, row, col) {
     if (block.specialAxis === "col") {
       return {
         cells: Array.from({ length: ROWS }, (_, effectRow) => ({ row: effectRow, col })),
-        rows: [],
-        cols: [col]
+        laneBursts: [{ axis: "col", index: col, colorHex: block.specialAccentHex }]
       };
     }
 
     return {
       cells: Array.from({ length: COLS }, (_, effectCol) => ({ row, col: effectCol })),
-      rows: [row],
-      cols: []
+      laneBursts: [{ axis: "row", index: row, colorHex: block.specialAccentHex }]
     };
   }
 
@@ -1132,15 +1145,16 @@ function getSpecialEffect(block, row, col) {
         ...Array.from({ length: COLS }, (_, effectCol) => ({ row, col: effectCol })),
         ...Array.from({ length: ROWS }, (_, effectRow) => ({ row: effectRow, col }))
       ],
-      rows: [row],
-      cols: [col]
+      laneBursts: [
+        { axis: "row", index: row, colorHex: block.specialAccentHex },
+        { axis: "col", index: col, colorHex: block.specialAccentHex }
+      ]
     };
   }
 
   return {
     cells: [{ row, col }],
-    rows: [],
-    cols: []
+    laneBursts: []
   };
 }
 
@@ -1156,22 +1170,31 @@ function getSquareArea(row, col, radius) {
 
 function describeClearEvent(clearState) {
   const clearedLines = clearState.rows.length + clearState.cols.length;
+  const laneBursts = clearState.laneBursts.length;
   if (clearState.specialBursts.length > 0) {
-    if (clearState.specialBursts.length === 1) {
-      const special = SPECIAL_SHARD_MAP.get(clearState.specialBursts[0].id);
-      return clearedLines > 0
-        ? `${special.name} detonated and cracked ${clearedLines === 1 ? "1 line" : `${clearedLines} lines`}`
-        : `${special.name} detonated`;
+    const specialLabel =
+      clearState.specialBursts.length === 1
+        ? `${SPECIAL_SHARD_MAP.get(clearState.specialBursts[0].id).name} detonated`
+        : `${clearState.specialBursts.length} power shards detonated`;
+    const aftermath = [];
+    if (laneBursts > 0) {
+      aftermath.push(laneBursts === 1 ? "a power lane" : `${laneBursts} power lanes`);
+    }
+    if (clearedLines > 0) {
+      aftermath.push(clearedLines === 1 ? "1 full line" : `${clearedLines} full lines`);
+    }
+    if (aftermath.length > 0) {
+      return `${specialLabel}, blasting ${aftermath.join(" and ")}`;
     }
 
-    return clearedLines > 0
-      ? `${clearState.specialBursts.length} power shards detonated and cracked ${
-          clearedLines === 1 ? "1 line" : `${clearedLines} lines`
-        }`
-      : `${clearState.specialBursts.length} power shards detonated`;
+    return specialLabel;
   }
 
-  return clearedLines === 1 ? "1 line shattered" : `${clearedLines} lines shattered`;
+  if (laneBursts > 0) {
+    return laneBursts === 1 ? "1 power lane vaporized" : `${laneBursts} power lanes vaporized`;
+  }
+
+  return clearedLines === 1 ? "1 full line shattered" : `${clearedLines} full lines shattered`;
 }
 
 function findClearTargets() {
@@ -1384,36 +1407,62 @@ function disposeBlock(block) {
   });
 }
 
-function spawnBurst(position, color) {
-  const count = 10;
+function spawnBurst(position, color, options = {}) {
+  const {
+    count = 10,
+    spread = 0.08,
+    lifeMin = 0.45,
+    lifeMax = 0.73,
+    scaleMin = 0.6,
+    scaleMax = 1.2,
+    useShards = false
+  } = options;
+
   for (let i = 0; i < count; i += 1) {
     const material = new THREE.MeshBasicMaterial({
       color: color.hex,
       transparent: true,
       opacity: 0.86
     });
-    const mesh = new THREE.Mesh(sparkleGeometry, material);
+    const mesh = new THREE.Mesh(useShards && Math.random() < 0.72 ? shardGeometry : sparkleGeometry, material);
     mesh.position.copy(boardGroup.localToWorld(position.clone()));
-    mesh.scale.setScalar(0.6 + Math.random() * 0.6);
+    mesh.scale.setScalar(scaleMin + Math.random() * (scaleMax - scaleMin));
     particleGroup.add(mesh);
 
     state.particles.push({
       mesh,
       velocity: new THREE.Vector3(
-        (Math.random() - 0.5) * 0.08,
-        (Math.random() - 0.5) * 0.08 + 0.03,
-        (Math.random() - 0.5) * 0.08
+        (Math.random() - 0.5) * spread * 2,
+        (Math.random() - 0.35) * spread * 1.8 + 0.03,
+        (Math.random() - 0.5) * spread * 2
       ),
-      life: 0.45 + Math.random() * 0.28
+      spin: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.26,
+        (Math.random() - 0.5) * 0.26,
+        (Math.random() - 0.5) * 0.26
+      ),
+      life: lifeMin + Math.random() * (lifeMax - lifeMin)
     });
   }
+}
+
+function spawnDetonationBurst(row, col, colorHex) {
+  spawnBurst(cellToLocal(row, col), { hex: colorHex }, {
+    count: 34,
+    spread: 0.18,
+    lifeMin: 0.64,
+    lifeMax: 1.04,
+    scaleMin: 0.76,
+    scaleMax: 1.38,
+    useShards: true
+  });
 }
 
 function spawnShockwave(row, col, colorHex, maxScale) {
   const material = new THREE.MeshBasicMaterial({
     color: colorHex,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.68,
     side: THREE.DoubleSide,
     depthWrite: false
   });
@@ -1427,6 +1476,35 @@ function spawnShockwave(row, col, colorHex, maxScale) {
     maxLife: 0.28,
     maxScale
   });
+}
+
+function spawnPowerSweeps(laneBursts) {
+  for (const laneBurst of laneBursts) {
+    const material = new THREE.MeshBasicMaterial({
+      color: laneBurst.colorHex,
+      transparent: true,
+      opacity: 0.44,
+      depthWrite: false
+    });
+
+    const mesh =
+      laneBurst.axis === "row"
+        ? new THREE.Mesh(new THREE.PlaneGeometry(BOARD_WIDTH * 1.04, CELL_SIZE * 1.2), material)
+        : new THREE.Mesh(new THREE.PlaneGeometry(CELL_SIZE * 1.2, BOARD_HEIGHT * 1.04), material);
+
+    if (laneBurst.axis === "row") {
+      mesh.position.set(0, BOARD_HEIGHT / 2 - CELL_SIZE / 2 - laneBurst.index * CELL_SIZE, BLOCK_DEPTH * 0.96);
+    } else {
+      mesh.position.set(-BOARD_WIDTH / 2 + CELL_SIZE / 2 + laneBurst.index * CELL_SIZE, 0, BLOCK_DEPTH * 0.96);
+    }
+
+    boardGroup.add(mesh);
+    state.powerSweeps.push({
+      mesh,
+      axis: laneBurst.axis,
+      life: 0.24
+    });
+  }
 }
 
 function spawnLineFlashes(rows, cols) {
@@ -1501,6 +1579,11 @@ function animate() {
     }
 
     particle.mesh.position.addScaledVector(particle.velocity, delta * 10);
+    if (particle.spin) {
+      particle.mesh.rotation.x += particle.spin.x;
+      particle.mesh.rotation.y += particle.spin.y;
+      particle.mesh.rotation.z += particle.spin.z;
+    }
     particle.mesh.scale.multiplyScalar(0.985);
     particle.mesh.material.opacity = particle.life * 1.6;
     return true;
@@ -1535,6 +1618,24 @@ function animate() {
     const scale = 0.4 + progress * shockwave.maxScale;
     shockwave.mesh.scale.setScalar(scale);
     shockwave.mesh.material.opacity = (1 - progress) * 0.52;
+    return true;
+  });
+
+  state.powerSweeps = state.powerSweeps.filter((sweep) => {
+    sweep.life -= delta;
+    if (sweep.life <= 0) {
+      boardGroup.remove(sweep.mesh);
+      sweep.mesh.material.dispose();
+      return false;
+    }
+
+    const progress = 1 - sweep.life / 0.24;
+    sweep.mesh.material.opacity = (1 - progress) * 0.5;
+    sweep.mesh.scale.set(
+      sweep.axis === "row" ? 1.06 + progress * 0.16 : 1,
+      sweep.axis === "row" ? 1 : 1.06 + progress * 0.16,
+      1
+    );
     return true;
   });
 
@@ -1628,7 +1729,7 @@ function setStatus(message) {
   }
   state.statusTimeout = window.setTimeout(() => {
     if (!state.resolving && !state.gameOver) {
-      statusText.textContent = "Complete a row or column. Power shards detonate on contact.";
+      statusText.textContent = "Complete a full row or column. Power shards can blast lanes early.";
     }
   }, 2800);
 }
