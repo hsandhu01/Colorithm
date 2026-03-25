@@ -179,6 +179,46 @@ export class AudioEngine {
     });
   }
 
+  playSpecial(triggerCount, comboDepth, lineCount) {
+    const now = this._now();
+    if (now == null) {
+      return;
+    }
+
+    const intensity = Math.min(triggerCount, 4);
+    this._playAssetAt("clear", now, {
+      volume: 0.5 + intensity * 0.05,
+      duration: 0.72,
+      playbackRate: 0.84 + intensity * 0.05 + comboDepth * 0.018
+    });
+    this._kick(now, 0.38 + intensity * 0.06, 138 + lineCount * 3);
+    this._kick(now + 0.11, 0.18 + comboDepth * 0.02, 118);
+    this._pluck(this._midiToFreq(84 + intensity), now + 0.03, {
+      duration: 0.3,
+      gain: 0.05,
+      type: "sawtooth",
+      destination: this.sfxBus,
+      brightness: 3200,
+      pan: -0.18
+    });
+    this._pluck(this._midiToFreq(91 + Math.min(comboDepth, 3)), now + 0.08, {
+      duration: 0.36,
+      gain: 0.048,
+      type: "triangle",
+      destination: this.sfxBus,
+      brightness: 3800,
+      pan: 0.2
+    });
+    this._noiseBurst(now + 0.02, {
+      duration: 0.16,
+      gain: 0.018 + intensity * 0.003,
+      filterFrequency: 2200 + intensity * 260,
+      filterType: "bandpass",
+      q: 0.75,
+      destination: this.sfxBus
+    });
+  }
+
   playCascade(comboDepth) {
     const now = this._now();
     if (now == null) {

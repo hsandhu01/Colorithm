@@ -35,6 +35,41 @@ const SHAPES = [
   { id: "fork", name: "Bloom", copy: "Split pressure", cells: [[1, 0], [0, 1], [1, 1], [2, 1]] }
 ];
 
+const SPECIAL_SHARDS = [
+  {
+    id: "nova",
+    name: "Nova Bomb",
+    copy: "3x3 detonation",
+    accentHex: 0xff8d6b,
+    accentCss: "#ff8d6b",
+    minOccupied: 4,
+    minScore: 450,
+    weight: 4
+  },
+  {
+    id: "rail",
+    name: "Rail Blaster",
+    copy: "Rotate for row or column",
+    accentHex: 0x9ff0eb,
+    accentCss: "#9ff0eb",
+    minOccupied: 6,
+    minScore: 900,
+    weight: 3
+  },
+  {
+    id: "prism",
+    name: "Prism Core",
+    copy: "Cross-lane burst",
+    accentHex: 0xffef8d,
+    accentCss: "#ffef8d",
+    minOccupied: 9,
+    minScore: 1600,
+    weight: 2
+  }
+];
+
+const SPECIAL_SHARD_MAP = new Map(SPECIAL_SHARDS.map((shard) => [shard.id, shard]));
+
 const canvas = document.querySelector("#app");
 const topUi = document.querySelector(".top-ui");
 const lowerUi = document.querySelector(".lower-ui");
@@ -115,6 +150,10 @@ const ghostGeometry = new RoundedBoxGeometry(0.88, 0.88, BLOCK_DEPTH * 0.92, 6, 
 const cellWellGeometry = new RoundedBoxGeometry(0.97, 0.97, 0.08, 4, 0.14);
 const sparkleGeometry = new THREE.IcosahedronGeometry(0.08, 0);
 const shardGeometry = new THREE.OctahedronGeometry(0.38, 0);
+const specialGlyphGeometry = new THREE.OctahedronGeometry(0.18, 0);
+const specialBarGeometry = new RoundedBoxGeometry(0.46, 0.12, 0.08, 4, 0.04);
+const specialRingGeometry = new THREE.TorusGeometry(0.24, 0.045, 12, 28);
+const shockwaveGeometry = new THREE.RingGeometry(0.22, 0.34, 28);
 const boardOverlayTexture = createBoardOverlayTexture();
 
 const ghostGroup = new THREE.Group();
@@ -306,6 +345,7 @@ const state = {
   blockRegistry: new Map(),
   particles: [],
   lineFlashes: [],
+  shockwaves: [],
   statusTimeout: null,
   shake: 0,
   runId: 0
@@ -531,6 +571,12 @@ function rotateSelected(direction) {
     return;
   }
 
+  if (piece.specialId && piece.specialId !== "rail") {
+    setStatus(`${piece.name} fires the same from any angle.`);
+    audio.playSelect();
+    return;
+  }
+
   clearTouchPlacementArm();
   piece.rotation = mod(piece.rotation + direction, 4);
   renderTray();
@@ -560,7 +606,7 @@ function resetGame() {
   renderTray();
   updateGhost();
   syncResponsiveLabels(audio.enabled);
-  setStatus("Pick a shard and work toward a full row or column.");
+  setStatus("Pick a shard, chase full lines, and watch for power cubes.");
 }
 
 function clearBoardMeshes() {
@@ -578,14 +624,29 @@ function clearBoardMeshes() {
     flash.mesh.material.dispose();
   }
   state.lineFlashes = [];
+  for (const shockwave of state.shockwaves) {
+    boardGroup.remove(shockwave.mesh);
+    shockwave.mesh.material.dispose();
+  }
+  state.shockwaves = [];
 }
 
 function refillPieces() {
-  state.pieces = Array.from({ length: 3 }, () => createPiece());
+  let specialUsed = false;
+  state.pieces = Array.from({ length: 3 }, () => {
+    const piece = createPiece(!specialUsed);
+    specialUsed ||= Boolean(piece.specialId);
+    return piece;
+  });
   state.selectedPieceId = state.pieces[0]?.id ?? null;
 }
 
-function createPiece() {
+function createPiece(allowSpecial = true) {
+  const availableSpecials = allowSpecial ? getAvailableSpecialShards() : [];
+  if (availableSpecials.length > 0 && Math.random() < 0.38) {
+    return createSpecialPiece(pickWeighted(availableSpecials));
+  }
+
   const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
   const colorIndex = Math.floor(Math.random() * COLORS.length);
   return {
@@ -599,6 +660,50 @@ function createPiece() {
   };
 }
 
+function createSpecialPiece(special) {
+  return {
+    id: crypto.randomUUID(),
+    shapeId: special.id,
+    name: special.name,
+    copy: special.copy,
+    baseCells: [[0, 0]],
+    colorIndex: Math.floor(Math.random() * COLORS.length),
+    rotation: special.id === "rail" ? Math.floor(Math.random() * 4) : 0,
+    specialId: special.id
+  };
+}
+
+function getAvailableSpecialShards() {
+  const occupied = countOccupiedCells();
+  return SPECIAL_SHARDS.filter(
+    (special) => occupied >= special.minOccupied || state.score >= special.minScore
+  );
+}
+
+function countOccupiedCells() {
+  let occupied = 0;
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      if (state.board[row][col]) {
+        occupied += 1;
+      }
+    }
+  }
+  return occupied;
+}
+
+function pickWeighted(items) {
+  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const item of items) {
+    roll -= item.weight;
+    if (roll <= 0) {
+      return item;
+    }
+  }
+  return items[items.length - 1];
+}
+
 function getSelectedPiece() {
   return state.pieces.find((piece) => piece.id === state.selectedPieceId) ?? null;
 }
@@ -609,11 +714,17 @@ function renderTray() {
   for (const piece of state.pieces) {
     const button = document.createElement("button");
     const color = COLORS[piece.colorIndex];
+    const special = piece.specialId ? SPECIAL_SHARD_MAP.get(piece.specialId) : null;
     const rotated = getRotatedCells(piece);
     const bounds = getBounds(rotated);
     button.type = "button";
     button.className = "piece-card";
     button.style.setProperty("--piece-color", color.css);
+    button.style.setProperty("--piece-accent", special?.accentCss ?? color.css);
+
+    if (special) {
+      button.classList.add("special");
+    }
 
     if (piece.id === state.selectedPieceId) {
       button.classList.add("selected");
@@ -628,10 +739,11 @@ function renderTray() {
     meta.className = "piece-meta";
     meta.innerHTML = `
       <div>
+        ${special ? '<span class="piece-badge">Power</span>' : ""}
         <p class="piece-name">${piece.name}</p>
         <p class="piece-copy">${piece.copy}</p>
       </div>
-      <span class="piece-rot">${rotationLabel(piece.rotation)}</span>
+      <span class="piece-rot">${getPieceCornerLabel(piece)}</span>
     `;
 
     const miniGrid = document.createElement("div");
@@ -644,7 +756,7 @@ function renderTray() {
       for (let col = 0; col < bounds.width; col += 1) {
         const cell = document.createElement("span");
         if (lookup.has(`${col},${row}`)) {
-          cell.className = "mini-cell";
+          cell.className = special ? "mini-cell special-cell" : "mini-cell";
         }
         miniGrid.append(cell);
       }
@@ -661,11 +773,7 @@ function renderTray() {
       renderTray();
       updateGhost();
       audio.playSelect();
-      setStatus(
-        window.innerWidth <= 720
-          ? `${piece.name} primed. Drag on the grid, then lift to place it.`
-          : `${piece.name} primed. Tap or click a cell to place it.`
-      );
+      setStatus(getPiecePrimeMessage(piece));
     });
 
     pieceTray.append(button);
@@ -758,9 +866,11 @@ async function placeSelectedPiece(piece, placementCells) {
   state.resolving = true;
   clearTouchPlacementArm();
   const color = COLORS[piece.colorIndex];
+  const initialTriggerCells = [];
+  const specialAxis = getPieceSpecialAxis(piece);
 
   for (const { row, col } of placementCells) {
-    const block = createBoardBlock(piece.colorIndex);
+    const block = createBoardBlock(piece.colorIndex, piece.specialId ?? null, specialAxis);
     const target = cellToLocal(row, col);
     block.target.copy(target);
     block.group.position.copy(target).add(new THREE.Vector3(0, 0.8, 2.2));
@@ -769,6 +879,9 @@ async function placeSelectedPiece(piece, placementCells) {
     boardGroup.add(block.group);
     state.blockRegistry.set(block.id, block);
     state.board[row][col] = block;
+    if (piece.specialId) {
+      initialTriggerCells.push({ row, col });
+    }
   }
 
   state.pieces = state.pieces.filter((candidate) => candidate.id !== piece.id);
@@ -776,7 +889,11 @@ async function placeSelectedPiece(piece, placementCells) {
   updateGhost();
   renderTray();
   updateScoreboard();
-  setStatus(`${color.label} shard locked. Complete the line to clear it.`);
+  setStatus(
+    piece.specialId
+      ? `${piece.name} armed. Brace for impact.`
+      : `${color.label} shard locked. Complete the line to clear it.`
+  );
   audio.playPlace();
 
   await wait(180);
@@ -784,7 +901,7 @@ async function placeSelectedPiece(piece, placementCells) {
     return;
   }
 
-  await resolveBoard(runId);
+  await resolveBoard(runId, initialTriggerCells);
   if (runId !== state.runId) {
     return;
   }
@@ -810,7 +927,7 @@ async function placeSelectedPiece(piece, placementCells) {
   state.resolving = false;
 }
 
-async function resolveBoard(runId) {
+async function resolveBoard(runId, pendingTriggerCells = []) {
   let comboDepth = 0;
 
   while (true) {
@@ -818,22 +935,37 @@ async function resolveBoard(runId) {
       return;
     }
 
-    const clearState = findClearTargets();
+    const lineState = findClearTargets();
+    if (pendingTriggerCells.length === 0 && lineState.cells.length === 0) {
+      break;
+    }
+
+    const clearState = expandClearTargets({
+      cells: [...pendingTriggerCells, ...lineState.cells],
+      rows: lineState.rows,
+      cols: lineState.cols
+    });
+    pendingTriggerCells = [];
+
     const targets = clearState.cells;
     if (targets.length === 0) {
-      break;
+      continue;
     }
 
     comboDepth += 1;
     const totalCleared = targets.length;
     const clearedLines = clearState.rows.length + clearState.cols.length;
-    const scoreGain = totalCleared * 125 * comboDepth;
+    const specialTriggerCount = clearState.specialBursts.length;
+    const scoreGain = totalCleared * 125 * comboDepth + specialTriggerCount * 220;
     state.score += scoreGain;
     state.lastCombo = comboDepth;
     state.best = Math.max(state.best, state.score);
     localStorage.setItem(STORAGE_KEY, String(state.best));
     updateScoreboard();
     spawnLineFlashes(clearState.rows, clearState.cols);
+    for (const burst of clearState.specialBursts) {
+      spawnShockwave(burst.row, burst.col, burst.accentHex, burst.id === "nova" ? 2.3 : 2.05);
+    }
 
     for (const { row, col } of targets) {
       const block = state.board[row][col];
@@ -841,20 +973,23 @@ async function resolveBoard(runId) {
         continue;
       }
 
-      spawnBurst(block.target, COLORS[block.colorIndex]);
+      spawnBurst(block.target, block.specialId ? { hex: block.specialAccentHex } : COLORS[block.colorIndex]);
       disposeBlock(block);
       state.blockRegistry.delete(block.id);
       state.board[row][col] = null;
     }
 
-    state.shake = Math.min(0.34, 0.1 + comboDepth * 0.05);
-    const lineLabel = clearedLines === 1 ? "1 line" : `${clearedLines} lines`;
+    state.shake = Math.min(0.44, 0.12 + comboDepth * 0.05 + specialTriggerCount * 0.05);
     setStatus(
       comboDepth > 1
-        ? `Combo x${comboDepth}. ${lineLabel} shattered for ${formatNumber(scoreGain)}.`
-        : `${lineLabel} shattered for ${formatNumber(scoreGain)}.`
+        ? `Combo x${comboDepth}. ${describeClearEvent(clearState)} for ${formatNumber(scoreGain)}.`
+        : `${describeClearEvent(clearState)} for ${formatNumber(scoreGain)}.`
     );
-    audio.playClear(clearedLines, comboDepth);
+    if (specialTriggerCount > 0) {
+      audio.playSpecial(specialTriggerCount, comboDepth, clearedLines);
+    } else {
+      audio.playClear(clearedLines, comboDepth);
+    }
     await wait(180);
     if (runId !== state.runId) {
       return;
@@ -906,6 +1041,137 @@ function syncBoardVisuals() {
       }
     }
   }
+}
+
+function expandClearTargets(baseState) {
+  const marked = new Map();
+  const rows = new Set(baseState.rows);
+  const cols = new Set(baseState.cols);
+  const processedSpecials = new Set();
+  const specialBursts = [];
+
+  const addTarget = (row, col) => {
+    if (!isInside(row, col)) {
+      return;
+    }
+
+    const block = state.board[row][col];
+    if (!block) {
+      return;
+    }
+
+    const key = `${row},${col}`;
+    if (!marked.has(key)) {
+      marked.set(key, { row, col });
+    }
+
+    if (!block.specialId || processedSpecials.has(block.id)) {
+      return;
+    }
+
+    processedSpecials.add(block.id);
+    specialBursts.push({
+      id: block.specialId,
+      row,
+      col,
+      accentHex: block.specialAccentHex
+    });
+
+    const effect = getSpecialEffect(block, row, col);
+    for (const effectRow of effect.rows) {
+      rows.add(effectRow);
+    }
+    for (const effectCol of effect.cols) {
+      cols.add(effectCol);
+    }
+    for (const cell of effect.cells) {
+      addTarget(cell.row, cell.col);
+    }
+  };
+
+  for (const cell of baseState.cells) {
+    addTarget(cell.row, cell.col);
+  }
+
+  return {
+    cells: [...marked.values()],
+    rows: [...rows],
+    cols: [...cols],
+    specialBursts
+  };
+}
+
+function getSpecialEffect(block, row, col) {
+  if (block.specialId === "nova") {
+    return {
+      cells: getSquareArea(row, col, 1),
+      rows: [],
+      cols: []
+    };
+  }
+
+  if (block.specialId === "rail") {
+    if (block.specialAxis === "col") {
+      return {
+        cells: Array.from({ length: ROWS }, (_, effectRow) => ({ row: effectRow, col })),
+        rows: [],
+        cols: [col]
+      };
+    }
+
+    return {
+      cells: Array.from({ length: COLS }, (_, effectCol) => ({ row, col: effectCol })),
+      rows: [row],
+      cols: []
+    };
+  }
+
+  if (block.specialId === "prism") {
+    return {
+      cells: [
+        ...Array.from({ length: COLS }, (_, effectCol) => ({ row, col: effectCol })),
+        ...Array.from({ length: ROWS }, (_, effectRow) => ({ row: effectRow, col }))
+      ],
+      rows: [row],
+      cols: [col]
+    };
+  }
+
+  return {
+    cells: [{ row, col }],
+    rows: [],
+    cols: []
+  };
+}
+
+function getSquareArea(row, col, radius) {
+  const cells = [];
+  for (let rowOffset = -radius; rowOffset <= radius; rowOffset += 1) {
+    for (let colOffset = -radius; colOffset <= radius; colOffset += 1) {
+      cells.push({ row: row + rowOffset, col: col + colOffset });
+    }
+  }
+  return cells;
+}
+
+function describeClearEvent(clearState) {
+  const clearedLines = clearState.rows.length + clearState.cols.length;
+  if (clearState.specialBursts.length > 0) {
+    if (clearState.specialBursts.length === 1) {
+      const special = SPECIAL_SHARD_MAP.get(clearState.specialBursts[0].id);
+      return clearedLines > 0
+        ? `${special.name} detonated and cracked ${clearedLines === 1 ? "1 line" : `${clearedLines} lines`}`
+        : `${special.name} detonated`;
+    }
+
+    return clearedLines > 0
+      ? `${clearState.specialBursts.length} power shards detonated and cracked ${
+          clearedLines === 1 ? "1 line" : `${clearedLines} lines`
+        }`
+      : `${clearState.specialBursts.length} power shards detonated`;
+  }
+
+  return clearedLines === 1 ? "1 line shattered" : `${clearedLines} lines shattered`;
 }
 
 function findClearTargets() {
@@ -981,7 +1247,12 @@ function updateGhost() {
 
   const placement = getPlacementCells(piece, state.hover.row, state.hover.col);
   for (const cell of placement.cells) {
-    const color = placement.valid ? COLORS[piece.colorIndex] : { hex: 0xff5964, emissive: 0x5d0f14 };
+    const special = piece.specialId ? SPECIAL_SHARD_MAP.get(piece.specialId) : null;
+    const color = placement.valid
+      ? special
+        ? { hex: special.accentHex, emissive: special.accentHex }
+        : COLORS[piece.colorIndex]
+      : { hex: 0xff5964, emissive: 0x5d0f14 };
     const shell = new THREE.Mesh(
       ghostGeometry,
       new THREE.MeshStandardMaterial({
@@ -1026,19 +1297,19 @@ function getPlacementCells(piece, anchorRow, anchorCol, overrideCells = null) {
   return { valid, cells: placement };
 }
 
-function createBoardBlock(colorIndex) {
+function createBoardBlock(colorIndex, specialId = null, specialAxis = null) {
   const color = COLORS[colorIndex];
   const shellMaterial = new THREE.MeshStandardMaterial({
     color: color.hex,
     emissive: color.emissive,
-    emissiveIntensity: 0.95,
+    emissiveIntensity: specialId ? 1.16 : 0.95,
     roughness: 0.18,
     metalness: 0.32
   });
   const coreMaterial = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
-    opacity: 0.17
+    opacity: specialId ? 0.26 : 0.17
   });
 
   const shell = new THREE.Mesh(blockGeometry, shellMaterial);
@@ -1046,11 +1317,58 @@ function createBoardBlock(colorIndex) {
   const group = new THREE.Group();
   group.add(shell, core);
 
+  let specialAura = null;
+  let specialAccentHex = color.hex;
+  if (specialId) {
+    const special = SPECIAL_SHARD_MAP.get(specialId);
+    specialAccentHex = special?.accentHex ?? color.hex;
+    const accentMaterial = new THREE.MeshBasicMaterial({
+      color: specialAccentHex,
+      transparent: true,
+      opacity: 0.42
+    });
+
+    if (specialId === "nova") {
+      const glyph = new THREE.Mesh(specialGlyphGeometry, accentMaterial.clone());
+      glyph.position.set(0, 0, BLOCK_DEPTH * 0.44);
+      group.add(glyph);
+    } else if (specialId === "rail") {
+      const bar = new THREE.Mesh(specialBarGeometry, accentMaterial.clone());
+      if (specialAxis === "col") {
+        bar.rotation.z = Math.PI / 2;
+      }
+      bar.position.set(0, 0, BLOCK_DEPTH * 0.42);
+      group.add(bar);
+    } else if (specialId === "prism") {
+      const crossA = new THREE.Mesh(specialBarGeometry, accentMaterial.clone());
+      const crossB = crossA.clone();
+      crossB.rotation.z = Math.PI / 2;
+      crossA.position.z = BLOCK_DEPTH * 0.42;
+      crossB.position.z = BLOCK_DEPTH * 0.42;
+      group.add(crossA, crossB);
+    }
+
+    specialAura = new THREE.Mesh(
+      specialRingGeometry,
+      new THREE.MeshBasicMaterial({
+        color: specialAccentHex,
+        transparent: true,
+        opacity: 0.38
+      })
+    );
+    specialAura.position.set(0, 0, BLOCK_DEPTH * 0.26);
+    group.add(specialAura);
+  }
+
   return {
     id: state.nextBlockId++,
     colorIndex,
+    specialId,
+    specialAxis,
+    specialAccentHex,
     group,
     shell,
+    specialAura,
     target: new THREE.Vector3(),
     wobble: Math.random() * Math.PI * 2,
     scaleTarget: 1
@@ -1089,6 +1407,26 @@ function spawnBurst(position, color) {
       life: 0.45 + Math.random() * 0.28
     });
   }
+}
+
+function spawnShockwave(row, col, colorHex, maxScale) {
+  const material = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.5,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(shockwaveGeometry, material);
+  mesh.position.copy(cellToLocal(row, col)).setZ(BLOCK_DEPTH * 0.98);
+  mesh.scale.setScalar(0.35);
+  boardGroup.add(mesh);
+  state.shockwaves.push({
+    mesh,
+    life: 0.28,
+    maxLife: 0.28,
+    maxScale
+  });
 }
 
 function spawnLineFlashes(rows, cols) {
@@ -1147,6 +1485,11 @@ function animate() {
     block.group.rotation.y = Math.sin(elapsed * 1.4 + block.wobble) * 0.05;
     block.group.rotation.x = Math.cos(elapsed * 1.2 + block.wobble) * 0.03;
     block.shell.material.emissiveIntensity = 0.86 + Math.sin(elapsed * 2.4 + block.wobble) * 0.14;
+    if (block.specialAura) {
+      const auraScale = 0.96 + Math.sin(elapsed * 3.1 + block.wobble) * 0.08;
+      block.specialAura.scale.setScalar(auraScale);
+      block.specialAura.material.opacity = 0.34 + Math.sin(elapsed * 3.6 + block.wobble) * 0.08;
+    }
   }
 
   state.particles = state.particles.filter((particle) => {
@@ -1177,6 +1520,21 @@ function animate() {
       flash.axis === "row" ? 0.92 + (0.2 - flash.life) * 1.6 : 1,
       1
     );
+    return true;
+  });
+
+  state.shockwaves = state.shockwaves.filter((shockwave) => {
+    shockwave.life -= delta;
+    if (shockwave.life <= 0) {
+      boardGroup.remove(shockwave.mesh);
+      shockwave.mesh.material.dispose();
+      return false;
+    }
+
+    const progress = 1 - shockwave.life / shockwave.maxLife;
+    const scale = 0.4 + progress * shockwave.maxScale;
+    shockwave.mesh.scale.setScalar(scale);
+    shockwave.mesh.material.opacity = (1 - progress) * 0.52;
     return true;
   });
 
@@ -1270,7 +1628,7 @@ function setStatus(message) {
   }
   state.statusTimeout = window.setTimeout(() => {
     if (!state.resolving && !state.gameOver) {
-      statusText.textContent = "Complete a full horizontal row or vertical column.";
+      statusText.textContent = "Complete a row or column. Power shards detonate on contact.";
     }
   }, 2800);
 }
@@ -1408,6 +1766,38 @@ function isInside(row, col) {
 
 function mod(value, divisor) {
   return ((value % divisor) + divisor) % divisor;
+}
+
+function getPieceSpecialAxis(piece) {
+  if (piece.specialId !== "rail") {
+    return null;
+  }
+  return piece.rotation % 2 === 0 ? "row" : "col";
+}
+
+function getPieceCornerLabel(piece) {
+  if (piece.specialId === "nova") {
+    return "3x3";
+  }
+  if (piece.specialId === "rail") {
+    return getPieceSpecialAxis(piece) === "row" ? "Row" : "Col";
+  }
+  if (piece.specialId === "prism") {
+    return "Cross";
+  }
+  return rotationLabel(piece.rotation);
+}
+
+function getPiecePrimeMessage(piece) {
+  if (piece.specialId) {
+    return window.innerWidth <= 720
+      ? `${piece.name} armed. Drag on the grid, then lift to fire it.`
+      : `${piece.name} armed. Tap or click a cell to fire it.`;
+  }
+
+  return window.innerWidth <= 720
+    ? `${piece.name} primed. Drag on the grid, then lift to place it.`
+    : `${piece.name} primed. Tap or click a cell to place it.`;
 }
 
 function rotationLabel(rotation) {
